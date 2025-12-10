@@ -11,6 +11,104 @@ import { HandRank } from '@/lib/poker/types';
 import { cn } from '@/lib/utils';
 import AnimatedChips from '@/components/AnimatedChips';
 
+// Component for flying bet animation
+function BetFlyAnimation({ 
+  playerId, 
+  amount, 
+  playerCardRef, 
+  potRef 
+}: { 
+  playerId: string; 
+  amount: number; 
+  playerCardRef: HTMLDivElement | undefined;
+  potRef: HTMLDivElement | null;
+}) {
+  const [positions, setPositions] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+  const animationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!playerCardRef || !potRef) {
+      console.log('[Bet Animation] Missing refs:', { playerCardRef: !!playerCardRef, potRef: !!potRef });
+      return;
+    }
+
+    // Calculate positions after a small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      const startRect = playerCardRef.getBoundingClientRect();
+      const endRect = potRef.getBoundingClientRect();
+      const startX = startRect.left + startRect.width / 2;
+      const startY = startRect.top + startRect.height / 2;
+      const endX = endRect.left + endRect.width / 2;
+      const endY = endRect.top + endRect.height / 2;
+      
+      console.log('[Bet Animation] Calculated positions:', { startX, startY, endX, endY, amount, deltaX: endX - startX, deltaY: endY - startY });
+      setPositions({ startX, startY, endX, endY });
+    }, 100); // Increased delay to ensure DOM is ready
+
+    return () => clearTimeout(timer);
+  }, [playerCardRef, potRef, amount]);
+
+  if (!positions) {
+    return null;
+  }
+
+  const deltaX = positions.endX - positions.startX;
+  const deltaY = positions.endY - positions.startY;
+
+  // Use requestAnimationFrame to ensure smooth animation
+  useEffect(() => {
+    if (!animationRef.current || !positions) return;
+    
+    const element = animationRef.current;
+    let startTime: number | null = null;
+    const duration = 1500; // 1.5 seconds
+    
+    const animate = (currentTime: number) => {
+      if (startTime === null) startTime = currentTime;
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function (ease-out)
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      
+      // Calculate current position with arc (slight upward curve)
+      const currentX = positions.startX + deltaX * easeOut;
+      const currentY = positions.startY + deltaY * easeOut - (50 * Math.sin(progress * Math.PI)); // Arc effect
+      const scale = 1 + (0.2 * Math.sin(progress * Math.PI)); // Scale up then down
+      const rotation = progress * 360; // Full rotation
+      const opacity = 1 - progress; // Fade out
+      
+      element.style.left = `${currentX}px`;
+      element.style.top = `${currentY}px`;
+      element.style.transform = `translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`;
+      element.style.opacity = `${opacity}`;
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [positions, deltaX, deltaY]);
+
+  return (
+    <div
+      ref={animationRef}
+      className="fixed pointer-events-none z-[10000]"
+      style={{
+        left: `${positions.startX}px`,
+        top: `${positions.startY}px`,
+        transform: 'translate(-50%, -50%)',
+      }}
+    >
+      <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap">
+        <span className="text-2xl">💰</span>
+        <span>${amount.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
 function getActionEmoji(action: string): string {
   const emojiMap: Record<string, string> = {
     'fold': '😔',
@@ -172,6 +270,41 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
       }, 5000);
     }
   }, [stats, gameState]);
+
+  // Track bet changes and create flying chip animations
+  useEffect(() => {
+    if (!gameState || !gameState.players) return;
+
+    gameState.players.forEach(player => {
+      const prevBet = prevBetRef.current.get(player.id) || 0;
+      const currentBet = player.currentBet || 0;
+      
+      // If bet increased, create animation
+      if (currentBet > prevBet) {
+        const betIncrease = currentBet - prevBet;
+        if (betIncrease > 0) {
+          console.log(`[Bet Animation] 💰 ${player.name} bet $${betIncrease} (prev: $${prevBet}, current: $${currentBet})`);
+          setBetAnimations(prev => {
+            const updated = new Map(prev);
+            updated.set(player.id, { amount: betIncrease, isAnimating: true });
+            return updated;
+          });
+          
+          // Clear animation after it completes (1.5 seconds)
+          setTimeout(() => {
+            setBetAnimations(prev => {
+              const updated = new Map(prev);
+              updated.delete(player.id);
+              return updated;
+            });
+          }, 1500);
+        }
+      }
+      
+      // Update previous bet
+      prevBetRef.current.set(player.id, currentBet);
+    });
+  }, [gameState]);
 
   // Track chip changes for animation
   // Delay chip updates if there's an active win/loss animation
@@ -467,39 +600,35 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           
           {/* Flying Bet Animations - Chips flying from players to pot */}
           {Array.from(betAnimations.entries()).map(([playerId, anim]) => {
-            if (!anim.isAnimating) return null;
+            if (!anim.isAnimating) {
+              console.log(`[Bet Animation] Skipping ${playerId} - not animating`);
+              return null;
+            }
             const player = gameState.players.find(p => p.id === playerId);
-            if (!player) return null;
+            if (!player) {
+              console.log(`[Bet Animation] Player not found: ${playerId}`);
+              return null;
+            }
             
             const playerCard = playerCardRefs.current.get(playerId);
-            const potElement = potRef.current;
+            const pot = potRef.current;
             
-            if (!playerCard || !potElement) return null;
-            
-            const startRect = playerCard.getBoundingClientRect();
-            const endRect = potElement.getBoundingClientRect();
-            const startX = startRect.left + startRect.width / 2;
-            const startY = startRect.top + startRect.height / 2;
-            const endX = endRect.left + endRect.width / 2;
-            const endY = endRect.top + endRect.height / 2;
+            console.log(`[Bet Animation] Rendering for ${player.name}:`, {
+              playerId,
+              amount: anim.amount,
+              hasPlayerCard: !!playerCard,
+              hasPot: !!pot,
+              betAnimationsSize: betAnimations.size
+            });
             
             return (
-              <div
-                key={`bet-fly-${playerId}-${Date.now()}`}
-                className="fixed pointer-events-none z-[10000] bet-fly-to-pot"
-                style={{
-                  left: `${startX}px`,
-                  top: `${startY}px`,
-                  transform: 'translate(-50%, -50%)',
-                  '--end-x': `${endX - startX}px`,
-                  '--end-y': `${endY - startY}px`,
-                } as React.CSSProperties}
-              >
-                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap">
-                  <span className="text-2xl">💰</span>
-                  <span>${anim.amount.toLocaleString()}</span>
-                </div>
-              </div>
+              <BetFlyAnimation
+                key={`bet-fly-${playerId}-${anim.amount}-${Date.now()}`}
+                playerId={playerId}
+                amount={anim.amount}
+                playerCardRef={playerCard}
+                potRef={pot}
+              />
             );
           })}
         </Card>
