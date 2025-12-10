@@ -11,6 +11,161 @@ import { HandRank } from '@/lib/poker/types';
 import { cn } from '@/lib/utils';
 import AnimatedChips from '@/components/AnimatedChips';
 
+// Component for flying pot distribution animation (pot to player)
+function PotDistributionAnimation({ 
+  playerId, 
+  amount, 
+  playerCardRef, 
+  potRef 
+}: { 
+  playerId: string; 
+  amount: number; 
+  playerCardRef: HTMLDivElement | undefined;
+  potRef: HTMLDivElement | null;
+}) {
+  const [positions, setPositions] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
+  const animationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!playerCardRef || !potRef) {
+      console.log('[Pot Distribution] ❌ Missing refs:', { playerCardRef: !!playerCardRef, potRef: !!potRef, playerId, amount });
+      return;
+    }
+
+    console.log('[Pot Distribution] 🎬 Starting animation setup for', { playerId, amount });
+
+    // Retry mechanism - try multiple times if refs aren't ready
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    const tryCalculatePositions = () => {
+      attempts++;
+      try {
+        if (!playerCardRef || !potRef) {
+          if (attempts < maxAttempts) {
+            setTimeout(tryCalculatePositions, 50);
+          }
+          return;
+        }
+
+        const startRect = potRef.getBoundingClientRect(); // Start from pot
+        const endRect = playerCardRef.getBoundingClientRect(); // End at player
+        
+        if (startRect.width === 0 || startRect.height === 0 || endRect.width === 0 || endRect.height === 0) {
+          if (attempts < maxAttempts) {
+            setTimeout(tryCalculatePositions, 50);
+          }
+          return;
+        }
+        
+        const startX = startRect.left + startRect.width / 2;
+        const startY = startRect.top + startRect.height / 2;
+        const endX = endRect.left + endRect.width / 2;
+        const endY = endRect.top + endRect.height / 2;
+        
+        console.log('[Pot Distribution] ✅ Calculated positions (attempt', attempts, '):', { 
+          startX, 
+          startY, 
+          endX, 
+          endY, 
+          amount, 
+          deltaX: endX - startX, 
+          deltaY: endY - startY
+        });
+        setPositions({ startX, startY, endX, endY });
+      } catch (error) {
+        console.error('[Pot Distribution] ❌ Error calculating positions (attempt', attempts, '):', error);
+        if (attempts < maxAttempts) {
+          setTimeout(tryCalculatePositions, 50);
+        }
+      }
+    };
+
+    const timer = setTimeout(tryCalculatePositions, 50);
+    return () => clearTimeout(timer);
+  }, [playerCardRef, potRef, amount, playerId]);
+
+  useEffect(() => {
+    if (!animationRef.current || !positions) {
+      console.log('[Pot Distribution] ⏸️ Animation not ready:', { hasRef: !!animationRef.current, hasPositions: !!positions });
+      return;
+    }
+    
+    console.log('[Pot Distribution] 🚀 Starting animation:', { playerId, amount, positions });
+    
+    const element = animationRef.current;
+    const deltaX = positions.endX - positions.startX;
+    const deltaY = positions.endY - positions.startY;
+    let startTime: number | null = null;
+    const duration = 2000; // 2 seconds
+    
+    element.style.display = 'block';
+    element.style.visibility = 'visible';
+    element.style.opacity = '1';
+    element.style.zIndex = '99999';
+    element.style.pointerEvents = 'none';
+    element.style.position = 'fixed';
+    
+    const animate = (currentTime: number) => {
+      if (startTime === null) {
+        startTime = currentTime;
+        console.log('[Pot Distribution] ▶️ Animation started');
+      }
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const currentX = positions.startX + deltaX * easeOut;
+      const currentY = positions.startY + deltaY * easeOut - (80 * Math.sin(progress * Math.PI));
+      const scale = 1 + (0.3 * Math.sin(progress * Math.PI));
+      const opacity = Math.max(0, 1 - progress * 0.7);
+      
+      element.style.left = `${currentX}px`;
+      element.style.top = `${currentY}px`;
+      element.style.transform = `translate(-50%, -50%) scale(${scale})`;
+      element.style.opacity = `${opacity}`;
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        console.log('[Pot Distribution] ✅ Animation completed');
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [positions, playerId, amount]);
+
+  if (!positions) {
+    return null;
+  }
+
+  return (
+    <div
+      ref={animationRef}
+      className="fixed pointer-events-none"
+      style={{
+        left: `${positions.startX}px`,
+        top: `${positions.startY}px`,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 99999,
+        display: 'block',
+        visibility: 'visible',
+        opacity: 1,
+      }}
+    >
+      <div 
+        className="bg-gradient-to-r from-green-500 to-green-700 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap"
+        style={{
+          filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
+        }}
+      >
+        <span className="text-2xl">💰</span>
+        <span>+${amount.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
 // Component for flying bet animation
 function BetFlyAnimation({ 
   playerId, 
@@ -34,17 +189,37 @@ function BetFlyAnimation({
 
     console.log('[Bet Animation] 🎬 Starting animation setup for', { playerId, amount });
 
-    // Calculate positions after a small delay to ensure DOM is ready
-    const timer = setTimeout(() => {
+    // Retry mechanism - try multiple times if refs aren't ready
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    const tryCalculatePositions = () => {
+      attempts++;
       try {
+        if (!playerCardRef || !potRef) {
+          if (attempts < maxAttempts) {
+            setTimeout(tryCalculatePositions, 50);
+          }
+          return;
+        }
+
         const startRect = playerCardRef.getBoundingClientRect();
         const endRect = potRef.getBoundingClientRect();
+        
+        // Check if elements are actually visible
+        if (startRect.width === 0 || startRect.height === 0 || endRect.width === 0 || endRect.height === 0) {
+          if (attempts < maxAttempts) {
+            setTimeout(tryCalculatePositions, 50);
+          }
+          return;
+        }
+        
         const startX = startRect.left + startRect.width / 2;
         const startY = startRect.top + startRect.height / 2;
         const endX = endRect.left + endRect.width / 2;
         const endY = endRect.top + endRect.height / 2;
         
-        console.log('[Bet Animation] ✅ Calculated positions:', { 
+        console.log('[Bet Animation] ✅ Calculated positions (attempt', attempts, '):', { 
           startX, 
           startY, 
           endX, 
@@ -52,43 +227,46 @@ function BetFlyAnimation({
           amount, 
           deltaX: endX - startX, 
           deltaY: endY - startY,
-          startRect: { width: startRect.width, height: startRect.height },
-          endRect: { width: endRect.width, height: endRect.height }
+          startRect: { width: startRect.width, height: startRect.height, left: startRect.left, top: startRect.top },
+          endRect: { width: endRect.width, height: endRect.height, left: endRect.left, top: endRect.top }
         });
         setPositions({ startX, startY, endX, endY });
       } catch (error) {
-        console.error('[Bet Animation] ❌ Error calculating positions:', error);
+        console.error('[Bet Animation] ❌ Error calculating positions (attempt', attempts, '):', error);
+        if (attempts < maxAttempts) {
+          setTimeout(tryCalculatePositions, 50);
+        }
       }
-    }, 150); // Increased delay to ensure DOM is ready
+    };
+
+    // Start trying after a small initial delay
+    const timer = setTimeout(tryCalculatePositions, 50);
 
     return () => clearTimeout(timer);
   }, [playerCardRef, potRef, amount, playerId]);
 
-  if (!positions) {
-    return null;
-  }
-
-  const deltaX = positions.endX - positions.startX;
-  const deltaY = positions.endY - positions.startY;
-
   // Use requestAnimationFrame to ensure smooth animation
+  // This hook must always run (before conditional return) to follow Rules of Hooks
   useEffect(() => {
     if (!animationRef.current || !positions) {
-      console.log('[Bet Animation] ⏸️ Animation not ready:', { hasRef: !!animationRef.current, hasPositions: !!positions });
       return;
     }
     
-    console.log('[Bet Animation] 🚀 Starting animation:', { playerId, amount, positions, deltaX, deltaY });
+    console.log('[Bet Animation] 🚀 Starting animation:', { playerId, amount, positions });
     
     const element = animationRef.current;
+    const deltaX = positions.endX - positions.startX;
+    const deltaY = positions.endY - positions.startY;
     let startTime: number | null = null;
     const duration = 1500; // 1.5 seconds
     
-    // Make sure element is visible
+    // Make sure element is visible and on top
     element.style.display = 'block';
     element.style.visibility = 'visible';
     element.style.opacity = '1';
-    element.style.zIndex = '10000';
+    element.style.zIndex = '99999';
+    element.style.pointerEvents = 'none';
+    element.style.position = 'fixed';
     
     const animate = (currentTime: number) => {
       if (startTime === null) {
@@ -105,12 +283,11 @@ function BetFlyAnimation({
       const currentX = positions.startX + deltaX * easeOut;
       const currentY = positions.startY + deltaY * easeOut - (50 * Math.sin(progress * Math.PI)); // Arc effect
       const scale = 1 + (0.2 * Math.sin(progress * Math.PI)); // Scale up then down
-      const rotation = progress * 360; // Full rotation
       const opacity = Math.max(0, 1 - progress * 0.8); // Fade out but keep some opacity longer
       
       element.style.left = `${currentX}px`;
       element.style.top = `${currentY}px`;
-      element.style.transform = `translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`;
+      element.style.transform = `translate(-50%, -50%) scale(${scale})`;
       element.style.opacity = `${opacity}`;
       
       if (progress < 1) {
@@ -121,19 +298,33 @@ function BetFlyAnimation({
     };
     
     requestAnimationFrame(animate);
-  }, [positions, deltaX, deltaY, playerId, amount]);
+  }, [positions, playerId, amount]);
+
+  // Conditional return must come AFTER all hooks
+  if (!positions) {
+    return null;
+  }
 
   return (
     <div
       ref={animationRef}
-      className="fixed pointer-events-none z-[10000]"
+      className="fixed pointer-events-none"
       style={{
         left: `${positions.startX}px`,
         top: `${positions.startY}px`,
         transform: 'translate(-50%, -50%)',
+        zIndex: 99999,
+        display: 'block',
+        visibility: 'visible',
+        opacity: 1,
       }}
     >
-      <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap">
+      <div 
+        className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap"
+        style={{
+          filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
+        }}
+      >
         <span className="text-2xl">💰</span>
         <span>${amount.toLocaleString()}</span>
       </div>
@@ -219,22 +410,53 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
   // Track bet animations - flying chips from player to pot
   const prevBetRef = useRef<Map<string, number>>(new Map());
   const prevPotRef = useRef<number>(0);
+  const prevChipsForPotDistRef = useRef<Map<string, number>>(new Map());
   const [betAnimations, setBetAnimations] = useState<Map<string, { amount: number; isAnimating: boolean }>>(new Map());
+  const [potDistributionAnimations, setPotDistributionAnimations] = useState<Map<string, { amount: number; isAnimating: boolean }>>(new Map());
   const playerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const potRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!stats || stats.length === 0) return;
+    console.log(`[Animation] 🔄 useEffect triggered - stats:`, stats?.length || 0, 'gameState:', !!gameState);
+    
+    if (!stats || stats.length === 0) {
+      console.log(`[Animation] ⚠️ No stats available`);
+      return;
+    }
+
+    console.log(`[Animation] 📊 Processing ${stats.length} stats:`, stats.map(s => ({
+      modelName: s.modelName,
+      modelId: s.modelId,
+      handsPlayed: s.handsPlayed,
+      handsWon: s.handsWon,
+      totalChips: s.totalChips
+    })));
 
     const newAnimations = new Map<string, { type: 'win' | 'loss'; profit: number }>();
     
     stats.forEach(stat => {
       const prevStat = prevStatsRef.current.get(stat.modelId);
       
+      console.log(`[Animation] 👤 Checking ${stat.modelName}:`, {
+        hasPrevStat: !!prevStat,
+        prevStat: prevStat,
+        currentStat: {
+          handsPlayed: stat.handsPlayed,
+          handsWon: stat.handsWon,
+          totalChips: stat.totalChips
+        }
+      });
+      
       if (prevStat) {
         const profitChange = stat.totalChips - prevStat.totalChips;
         const handsPlayedChanged = stat.handsPlayed > prevStat.handsPlayed;
         const handsWonChanged = stat.handsWon > prevStat.handsWon;
+        
+        console.log(`[Animation] 📈 ${stat.modelName} changes:`, {
+          profitChange,
+          handsPlayedChanged: `${prevStat.handsPlayed} -> ${stat.handsPlayed}`,
+          handsWonChanged: `${prevStat.handsWon} -> ${stat.handsWon}`
+        });
         
         // Only trigger animations when a hand has completed (handsPlayed increased)
         if (handsPlayedChanged) {
@@ -254,7 +476,10 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             // Also set by player name as backup
             const player = gameState?.players?.find(p => p.name === stat.modelName);
             if (player) {
+              console.log(`[Animation] ✅ Also setting WIN animation for player.id: ${player.id}`);
               newAnimations.set(player.id, { type: 'win', profit: profitAmount });
+            } else {
+              console.log(`[Animation] ⚠️ Player not found for ${stat.modelName}`);
             }
           }
           // Loss: handsPlayed increased but handsWon didn't (player lost the hand)
@@ -265,10 +490,17 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             // Also set by player name as backup
             const player = gameState?.players?.find(p => p.name === stat.modelName);
             if (player) {
+              console.log(`[Animation] ❌ Also setting LOSS animation for player.id: ${player.id}`);
               newAnimations.set(player.id, { type: 'loss', profit: profitAmount });
+            } else {
+              console.log(`[Animation] ⚠️ Player not found for ${stat.modelName}`);
             }
           }
+        } else {
+          console.log(`[Animation] ⏭️ ${stat.modelName}: No hand completion detected`);
         }
+      } else {
+        console.log(`[Animation] 📝 ${stat.modelName}: First time seeing this player, storing initial stats`);
       }
       
       // Update previous stats
@@ -287,6 +519,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           updated.set(key, value);
           console.log(`[Animation] ✨ Added: ${key} -> ${value.type} $${value.profit}`);
         });
+        console.log(`[Animation] 📦 Final animations map:`, Array.from(updated.entries()));
         return updated;
       });
       
@@ -301,8 +534,87 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           return updated;
         });
       }, 5000);
+    } else {
+      console.log(`[Animation] ℹ️ No new animations to set`);
     }
   }, [stats, gameState]);
+
+  // Track previous phase to detect when hand finishes
+  const prevPhaseRef = useRef<string>('');
+
+  // Track pot distribution FIRST (before bet tracking updates prevPotRef)
+  // This must run before bet tracking to detect pot decreases
+  useEffect(() => {
+    if (!gameState || !gameState.players) return;
+
+    const currentPot = gameState.pot || 0;
+    const prevPot = prevPotRef.current;
+    const potDecrease = prevPot - currentPot;
+    const currentPhase = gameState.phase || '';
+    const prevPhase = prevPhaseRef.current;
+    const phaseChangedToFinished = prevPhase !== 'finished' && currentPhase === 'finished';
+
+    console.log(`[Pot Distribution] 🔍 Checking - Pot: $${prevPot} -> $${currentPot} (decrease: $${potDecrease}), Phase: ${prevPhase} -> ${currentPhase}`);
+
+    // If pot decreased OR phase changed to 'finished', check for winners
+    // Phase changes to 'finished' after pot distribution, so this is a reliable trigger
+    if (potDecrease > 0 || phaseChangedToFinished) {
+      if (potDecrease > 0) {
+        console.log(`[Pot Distribution] 🎉 Pot decreased: $${prevPot} -> $${currentPot} (decrease: $${potDecrease})`);
+      }
+      if (phaseChangedToFinished) {
+        console.log(`[Pot Distribution] 🎉 Phase changed to finished - pot was distributed`);
+      }
+      
+      // Find players whose chips increased (winners)
+      gameState.players.forEach(player => {
+        const prevChips = prevChipsForPotDistRef.current.get(player.id);
+        const currentChips = player.chips || 0;
+        
+        // If we don't have previous chips, use current chips as baseline
+        const baselineChips = prevChips !== undefined ? prevChips : currentChips;
+        const chipIncrease = currentChips - baselineChips;
+        
+        console.log(`[Pot Distribution] 👤 ${player.name}: chips $${baselineChips} -> $${currentChips} (increase: $${chipIncrease})`);
+        
+        // If chips increased and (pot decreased OR phase finished), this player won
+        if (chipIncrease > 0 && (potDecrease > 0 || phaseChangedToFinished)) {
+          // Calculate the actual winnings (use pot decrease if available, otherwise chip increase)
+          const winnings = potDecrease > 0 ? Math.min(chipIncrease, potDecrease) : chipIncrease;
+          
+          console.log(`[Pot Distribution] 🏆 ${player.name} won $${winnings} (prev: $${baselineChips}, current: $${currentChips}, pot decrease: $${potDecrease})`);
+          setPotDistributionAnimations(prev => {
+            const updated = new Map(prev);
+            updated.set(player.id, { amount: winnings, isAnimating: true });
+            console.log(`[Pot Distribution] ✅ Added distribution animation for ${player.name}, total animations: ${updated.size}`);
+            return updated;
+          });
+          
+          // Clear animation after it completes (2.5 seconds)
+          setTimeout(() => {
+            setPotDistributionAnimations(prev => {
+              const updated = new Map(prev);
+              updated.delete(player.id);
+              console.log(`[Pot Distribution] 🧹 Cleared animation for ${player.name}`);
+              return updated;
+            });
+          }, 2500);
+        }
+        
+        // Update previous chips
+        prevChipsForPotDistRef.current.set(player.id, currentChips);
+      });
+    } else {
+      // Pot didn't decrease, but still update previous chips to track changes
+      gameState.players.forEach(player => {
+        const currentChips = player.chips || 0;
+        prevChipsForPotDistRef.current.set(player.id, currentChips);
+      });
+    }
+    
+    // Update previous phase
+    prevPhaseRef.current = currentPhase;
+  }, [gameState]);
 
   // Track bet changes and create flying chip animations
   useEffect(() => {
@@ -335,7 +647,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               return updated;
             });
             
-            // Clear animation after it completes (1.5 seconds)
+            // Clear animation after it completes (2.5 seconds - longer to ensure animation finishes)
             setTimeout(() => {
               setBetAnimations(prev => {
                 const updated = new Map(prev);
@@ -343,7 +655,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 console.log(`[Bet Animation] 🧹 Cleared animation for ${player.name}`);
                 return updated;
               });
-            }, 1500);
+            }, 2500);
           }
         }
         
@@ -358,7 +670,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
       });
     }
     
-    // Update previous pot
+    // Update previous pot AFTER checking for pot distribution
     prevPotRef.current = currentPot;
   }, [gameState]);
 
@@ -657,29 +969,69 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           {/* Flying Bet Animations - Chips flying from players to pot */}
           {Array.from(betAnimations.entries()).map(([playerId, anim]) => {
             if (!anim.isAnimating) {
-              console.log(`[Bet Animation] Skipping ${playerId} - not animating`);
               return null;
             }
             const player = gameState.players.find(p => p.id === playerId);
             if (!player) {
-              console.log(`[Bet Animation] Player not found: ${playerId}`);
               return null;
             }
             
             const playerCard = playerCardRefs.current.get(playerId);
             const pot = potRef.current;
             
-            console.log(`[Bet Animation] Rendering for ${player.name}:`, {
+            // Wait for refs to be available - retry if not ready
+            if (!playerCard || !pot) {
+              // Retry after a short delay
+              setTimeout(() => {
+                const retryPlayerCard = playerCardRefs.current.get(playerId);
+                const retryPot = potRef.current;
+                if (retryPlayerCard && retryPot) {
+                  console.log(`[Bet Animation] ✅ Refs now available for ${player.name}`);
+                }
+              }, 100);
+              return null;
+            }
+            
+            console.log(`[Bet Animation] 🎨 Rendering animation for ${player.name}:`, {
               playerId,
               amount: anim.amount,
               hasPlayerCard: !!playerCard,
               hasPot: !!pot,
-              betAnimationsSize: betAnimations.size
+              playerCardRect: playerCard.getBoundingClientRect(),
+              potRect: pot.getBoundingClientRect()
             });
             
             return (
               <BetFlyAnimation
-                key={`bet-fly-${playerId}-${anim.amount}-${Date.now()}`}
+                key={`bet-fly-${playerId}-${anim.amount}`}
+                playerId={playerId}
+                amount={anim.amount}
+                playerCardRef={playerCard}
+                potRef={pot}
+              />
+            );
+          })}
+          
+          {/* Pot Distribution Animations - Chips flying from pot to winning players */}
+          {Array.from(potDistributionAnimations.entries()).map(([playerId, anim]) => {
+            if (!anim.isAnimating) {
+              return null;
+            }
+            const player = gameState.players.find(p => p.id === playerId);
+            if (!player) {
+              return null;
+            }
+            
+            const playerCard = playerCardRefs.current.get(playerId);
+            const pot = potRef.current;
+            
+            if (!playerCard || !pot) {
+              return null;
+            }
+            
+            return (
+              <PotDistributionAnimation
+                key={`pot-dist-${playerId}-${anim.amount}`}
                 playerId={playerId}
                 amount={anim.amount}
                 playerCardRef={playerCard}
@@ -717,19 +1069,45 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             }
           }
           
+          // Also try all keys in winLossAnimations to see if any match
+          if (!animationData && winLossAnimations.size > 0) {
+            winLossAnimations.forEach((value, key) => {
+              if (!animationData && (key === modelStat.modelId || 
+                  key === player.id || 
+                  key === modelStat.modelName ||
+                  key === player.name)) {
+                animationData = value;
+                console.log(`[Animation Display] 🔍 Found animation by key matching: ${key}`);
+              }
+            });
+          }
+          
           const animationState = animationData?.type || null;
           const profitAmount = animationData?.profit || 0;
           
-          // Debug logging
-          if (animationState) {
-            console.log(`[Animation Display] 🎬 ${modelStat.modelName}:`, {
-              animationState,
-              profitAmount,
-              modelId: modelStat.modelId,
-              playerId: player.id,
-              found: !!animationData
-            });
-          }
+          // Enhanced debug logging - ALWAYS log to see what's happening
+          const allAnimationsArray: Array<[string, { type: 'win' | 'loss'; profit: number } | null]> = [];
+          winLossAnimations.forEach((value, key) => {
+            allAnimationsArray.push([key, value]);
+          });
+          
+          console.log(`[Animation Display] 🔍 ${modelStat.modelName}:`, {
+            animationState,
+            profitAmount,
+            hasAnimationData: !!animationData,
+            modelId: modelStat.modelId,
+            playerId: player.id,
+            playerName: player.name,
+            modelName: modelStat.modelName,
+            winLossAnimationsSize: winLossAnimations.size,
+            allAnimations: allAnimationsArray,
+            tryingKeys: {
+              modelId: winLossAnimations.get(modelStat.modelId),
+              playerId: winLossAnimations.get(player.id),
+              modelName: winLossAnimations.get(modelStat.modelName),
+              playerName: winLossAnimations.get(player.name)
+            }
+          });
           
           // Get player's hand rank for color matching
           const playerHandRank = handRankMap.get(player.id);
@@ -787,6 +1165,12 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   animationState === 'loss' && 'animate-loss-shake ring-4 ring-red-400',
                   player.chips <= 0 && 'opacity-40 transition-opacity duration-500'
                 )}
+                style={{
+                  // Ensure overflow is visible when animation is active
+                  overflow: animationState ? 'visible' : undefined,
+                  position: 'relative',
+                  zIndex: animationState ? 10 : undefined,
+                }}
               >
               {/* Messenger Balloon - Inside Card */}
               {shouldShowMessenger && (
@@ -849,7 +1233,24 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
 
               {/* Win/Loss Animation Overlay */}
               {animationState === 'win' && (
-                <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'visible' }}>
+                <div 
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none" 
+                  style={{ 
+                    position: 'absolute', 
+                    top: 0, 
+                    left: 0, 
+                    right: 0, 
+                    bottom: 0, 
+                    overflow: 'visible',
+                    zIndex: 10000,
+                    pointerEvents: 'none',
+                    backgroundColor: 'rgba(0, 255, 0, 0.2)' // Temporary: green background to see if overlay renders
+                  }}
+                >
+                  {(() => {
+                    console.log(`[Animation Display] 🎨 Rendering WIN overlay for ${modelStat.modelName} with profit: $${profitAmount}`);
+                    return null;
+                  })()}
                   {/* Celebration Emojis */}
                   <div className="absolute top-8 left-1/4 text-5xl animate-float-up rotate-12">🎊</div>
                   <div className="absolute top-6 right-1/4 text-4xl animate-float-up-delayed -rotate-12">✨</div>
@@ -885,7 +1286,24 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 </div>
               )}
               {animationState === 'loss' && (
-                <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'visible' }}>
+                <div 
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none" 
+                  style={{ 
+                    position: 'absolute', 
+                    top: 0, 
+                    left: 0, 
+                    right: 0, 
+                    bottom: 0, 
+                    overflow: 'visible',
+                    zIndex: 10000,
+                    pointerEvents: 'none',
+                    backgroundColor: 'rgba(255, 0, 0, 0.2)' // Temporary: red background to see if overlay renders
+                  }}
+                >
+                  {(() => {
+                    console.log(`[Animation Display] 🎨 Rendering LOSS overlay for ${modelStat.modelName} with loss: $${profitAmount}`);
+                    return null;
+                  })()}
                   {/* Loss Emojis */}
                   <div className="absolute top-8 left-1/4 text-4xl animate-float-down rotate-12">💔</div>
                   <div className="absolute top-6 right-1/4 text-5xl animate-float-down-delayed -rotate-12">😢</div>
