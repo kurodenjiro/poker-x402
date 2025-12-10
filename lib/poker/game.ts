@@ -50,8 +50,15 @@ export class PokerGame {
     this.state.currentBet = 0;
     this.state.phase = 'pre-flop';
 
+    // Reactivate all players who have chips (they may have folded in previous hand)
+    this.state.players.forEach(player => {
+      if (player.chips > 0) {
+        player.isActive = true;
+      }
+    });
+
     // Deal cards to active players
-    const activePlayers = this.state.players.filter(p => p.isActive && p.chips > 0);
+    const activePlayers = this.getActivePlayers();
     activePlayers.forEach(player => {
       player.hand = [this.dealCard(), this.dealCard()];
       player.currentBet = 0;
@@ -64,8 +71,24 @@ export class PokerGame {
     this.postBlinds();
 
     // Set current player (first to act after big blind)
-    const bigBlindIndex = (this.state.dealerIndex + 2) % activePlayers.length;
-    this.state.currentPlayerIndex = (bigBlindIndex + 1) % activePlayers.length;
+    // Find the actual player index in the full players array
+    if (activePlayers.length < 2) return;
+    
+    const bigBlindIndexInActive = (this.state.dealerIndex + 2) % activePlayers.length;
+    const nextPlayerIndexInActive = (bigBlindIndexInActive + 1) % activePlayers.length;
+    const nextPlayer = activePlayers[nextPlayerIndexInActive];
+    
+    // Find the index of this player in the full players array
+    this.state.currentPlayerIndex = this.state.players.findIndex(p => p.id === nextPlayer.id);
+    
+    // Ensure we have a valid current player
+    if (this.state.currentPlayerIndex === -1 || !this.state.players[this.state.currentPlayerIndex].isActive) {
+      // Fallback: find first active player
+      const firstActive = this.state.players.findIndex(p => p.isActive && p.chips > 0);
+      if (firstActive !== -1) {
+        this.state.currentPlayerIndex = firstActive;
+      }
+    }
   }
 
   private dealCard(): Card {
@@ -136,6 +159,7 @@ export class PokerGame {
         this.state.pot += callAmount;
         if (player.chips === 0) {
           player.isAllIn = true;
+          // Mark as inactive for future hands (but can still win current hand)
         }
         break;
 
@@ -155,6 +179,7 @@ export class PokerGame {
         this.state.currentBet = player.totalBetThisRound;
         if (player.chips === 0) {
           player.isAllIn = true;
+          // Mark as inactive for future hands (but can still win current hand)
         }
         break;
 
@@ -279,11 +304,43 @@ export class PokerGame {
 
   private distributePot(): void {
     const activePlayers = this.getActivePlayers();
-    if (activePlayers.length === 0) return;
+    if (activePlayers.length === 0) {
+      // No active players - still increment round and move dealer button
+      this.state.dealerIndex = (this.state.dealerIndex + 1) % this.state.players.length;
+      this.state.round++;
+      
+      // Clear all hands and community cards after pot distribution (prepare for next hand)
+      this.state.players.forEach(player => {
+        player.hand = [];
+      });
+      this.state.communityCards = [];
+      this.state.phase = 'finished'; // Set phase to finished to hide cards
+      return;
+    }
 
     if (activePlayers.length === 1) {
+      // Only one active player - they win the pot
       activePlayers[0].chips += this.state.pot;
       this.state.pot = 0;
+      
+      // Mark players with 0 chips as inactive for future hands
+      this.state.players.forEach(player => {
+        if (player.chips === 0) {
+          player.isActive = false;
+          player.isAllIn = false;
+        }
+      });
+
+      // Move dealer button and increment round
+      this.state.dealerIndex = (this.state.dealerIndex + 1) % this.state.players.length;
+      this.state.round++;
+      
+      // Clear all hands and community cards after pot distribution (prepare for next hand)
+      this.state.players.forEach(player => {
+        player.hand = [];
+      });
+      this.state.communityCards = [];
+      this.state.phase = 'finished'; // Set phase to finished to hide cards
       return;
     }
 
@@ -298,16 +355,35 @@ export class PokerGame {
     const winningValue = evaluations[0].evaluation.value;
     const winners = evaluations.filter(e => e.evaluation.value === winningValue);
 
-    // Distribute pot
+    // Distribute pot evenly, handling remainder
     const potPerWinner = Math.floor(this.state.pot / winners.length);
-    winners.forEach(winner => {
-      winner.player.chips += potPerWinner;
+    const remainder = this.state.pot % winners.length;
+    
+    winners.forEach((winner, index) => {
+      // First winner gets any remainder chips
+      const chipsToAdd = potPerWinner + (index === 0 ? remainder : 0);
+      winner.player.chips += chipsToAdd;
     });
     this.state.pot = 0;
+
+    // Mark players with 0 chips as inactive for future hands
+    this.state.players.forEach(player => {
+      if (player.chips === 0) {
+        player.isActive = false;
+        player.isAllIn = false;
+      }
+    });
 
     // Move dealer button
     this.state.dealerIndex = (this.state.dealerIndex + 1) % this.state.players.length;
     this.state.round++;
+    
+    // Clear all hands and community cards after pot distribution (prepare for next hand)
+    this.state.players.forEach(player => {
+      player.hand = [];
+    });
+    this.state.communityCards = [];
+    this.state.phase = 'finished'; // Set phase to finished to hide cards
   }
 
   private getActivePlayers(): Player[] {

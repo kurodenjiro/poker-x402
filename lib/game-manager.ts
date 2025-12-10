@@ -5,6 +5,8 @@ import { ModelEvaluator } from './ai/evaluator';
 import { evaluateHand } from './poker/cards';
 import { chatHistory, ChatMessage } from './ai/chat-history';
 import { getActionEmoji, generateStrategyChat, getCardDealEmoji } from './ai/strategy-chat';
+import { getSimulatorStatus } from './ai/simulator';
+import { query } from './db/postgres';
 
 export interface GameConfig {
   modelNames: string[];
@@ -21,6 +23,7 @@ export class GameManager {
   private config: GameConfig | null = null;
   private handsPlayed: number = 0;
   private isRunning: boolean = false;
+  private gameId: string | null = null;
 
   constructor(models: AIModel[]) {
     models.forEach(model => {
@@ -28,8 +31,21 @@ export class GameManager {
     });
   }
 
-  async startGame(config: GameConfig): Promise<void> {
+  async startGame(config: GameConfig, gameId?: string): Promise<void> {
+    // Prevent starting a new game if a different game is already running
+    if (this.isRunning && this.gameId && this.gameId !== gameId) {
+      console.log(`Game ${this.gameId} is already running. Cannot start game ${gameId}.`);
+      return;
+    }
+    
+    // If the same game is already running, don't restart it
+    if (this.isRunning && this.gameId === gameId) {
+      console.log(`Game ${gameId} is already running. Skipping restart.`);
+      return;
+    }
+    
     this.config = config;
+    this.gameId = gameId || null;
     this.handsPlayed = 0;
     this.evaluator.reset();
     chatHistory.clear(); // Clear chat history for new game
@@ -48,23 +64,87 @@ export class GameManager {
     );
 
     this.isRunning = true;
+    
+    // Save initial game state to database immediately so it can be fetched on refresh
+    if (this.gameId) {
+      await this.saveGameStateToDB().catch(console.error);
+    }
+    
     await this.playHand();
   }
 
   private async playHand(): Promise<void> {
     if (!this.game || !this.config) return;
 
-    // Check if we should continue
-    if (this.config.maxHands && this.handsPlayed >= this.config.maxHands) {
+    const state = this.game.getState();
+    
+    // Check if game should end (when only one player has chips, they win)
+    // This is the ONLY condition that should stop the game
+    const playersWithChips = state.players.filter(p => p.chips > 0);
+    
+    // Debug logging
+    console.log(`[playHand] Players with chips: ${playersWithChips.length}`, 
+      playersWithChips.map(p => `${p.name}: ${p.chips} chips (active: ${p.isActive})`));
+    
+    if (playersWithChips.length <= 1) {
+      console.log(`[playHand] Game ending: Only ${playersWithChips.length} player(s) with chips`);
       this.isRunning = false;
+      
+      // Ensure the winner gets any remaining pot
+      if (playersWithChips.length === 1 && state.pot > 0) {
+        console.log(`[playHand] Giving remaining pot (${state.pot}) to winner`);
+        playersWithChips[0].chips += state.pot;
+        // Update game state - need to access actual game state, not copy
+        // The pot will be distributed in distributePot() or we handle it here
+      }
+      
+      // Save final state and update lobby status
+      if (this.gameId) {
+        await this.saveGameStateToDB().catch(console.error);
+        // Update lobby status to finished
+        try {
+          const { query } = await import('@/lib/db/postgres');
+          await query(
+            `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
+            [this.gameId]
+          );
+          // Emit lobby update
+          if (global.io) {
+            global.io.emit('lobby-update');
+          }
+        } catch (error) {
+          console.error('Error updating lobby status:', error);
+        }
+      }
       return;
     }
-
-    // Check if game should end (only one player with chips)
-    const state = this.game.getState();
-    const playersWithChips = state.players.filter(p => p.chips > 0);
-    if (playersWithChips.length <= 1) {
+    
+    // Reactivate players who have chips but are inactive (they folded in previous hand)
+    // IMPORTANT: getState() returns a copy, so we need to modify the actual game state
+    // The startHand() method in PokerGame will handle reactivation, but we need to ensure
+    // the game state is correct before calling it
+    
+    // Verify we have at least 2 players with chips (regardless of active status)
+    const playersWithChipsCount = state.players.filter(p => p.chips > 0).length;
+    if (playersWithChipsCount < 2) {
       this.isRunning = false;
+      if (this.gameId) {
+        await this.saveGameStateToDB().catch(console.error);
+        // Update lobby status to finished
+        try {
+          const { query } = await import('@/lib/db/postgres');
+          await query(
+            `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
+            [this.gameId]
+          );
+          // Emit lobby update
+          if (global.io) {
+            global.io.emit('lobby-update');
+          }
+        } catch (error) {
+          console.error('Error updating lobby status:', error);
+        }
+      }
       return;
     }
 
@@ -98,6 +178,20 @@ export class GameManager {
       const currentPlayer = this.game.getCurrentPlayer();
 
       if (!currentPlayer || !currentPlayer.isActive) {
+        // Try to advance to next player if current player is invalid
+        const activePlayers = state.players.filter(p => p.isActive && p.chips > 0);
+        if (activePlayers.length === 0) {
+          // No active players, hand is complete
+          break;
+        }
+        // Try to find and set a valid current player
+        const nextActivePlayer = activePlayers.find(p => p.id !== currentPlayer?.id) || activePlayers[0];
+        const nextPlayerIndex = state.players.findIndex(p => p.id === nextActivePlayer.id);
+        if (nextPlayerIndex !== -1 && this.game) {
+          // Manually advance to next player
+          (this.game as any).state.currentPlayerIndex = nextPlayerIndex;
+          continue;
+        }
         break;
       }
 
@@ -175,6 +269,41 @@ export class GameManager {
         this.evaluator.recordAction(currentPlayer.id, 'fold');
       }
       
+      // Save and emit game state after EVERY action for smooth real-time updates
+      if (this.gameId) {
+        this.saveGameStateToDB().catch(console.error);
+      }
+      
+      // Check if game should end immediately after action (player won all chips)
+      const stateAfterAction = this.game.getState();
+      const playersWithChipsAfterAction = stateAfterAction.players.filter(p => p.chips > 0);
+      if (playersWithChipsAfterAction.length <= 1) {
+        this.isRunning = false;
+        // Ensure winner gets any remaining pot
+        if (playersWithChipsAfterAction.length === 1 && stateAfterAction.pot > 0) {
+          playersWithChipsAfterAction[0].chips += stateAfterAction.pot;
+        }
+        // Save final state and update lobby status
+        if (this.gameId) {
+          await this.saveGameStateToDB().catch(console.error);
+          // Update lobby status to finished
+          try {
+            const { query } = await import('@/lib/db/postgres');
+            await query(
+              `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
+              [this.gameId]
+            );
+            // Emit lobby update
+            if (global.io) {
+              global.io.emit('lobby-update');
+            }
+          } catch (error) {
+            console.error('Error updating lobby status:', error);
+          }
+        }
+        return; // Stop immediately, don't continue
+      }
+      
       // Add delay after action for better visualization
       await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -229,6 +358,11 @@ export class GameManager {
           chatHistory.addMessage(strategyMessage);
         });
         
+        // Save and emit game state after dealing cards
+        if (this.gameId) {
+          this.saveGameStateToDB().catch(console.error);
+        }
+        
         await new Promise(resolve => setTimeout(resolve, 2000)); // Delay for card dealing animation
       }
     }
@@ -236,7 +370,112 @@ export class GameManager {
     // Hand complete - evaluate results
     await this.evaluateHand();
     
-    // Continue to next hand
+    // Save game state to database after each hand
+    if (this.gameId) {
+      this.saveGameStateToDB().catch(console.error);
+    }
+    
+    // Check if max hands reached
+    if (this.config?.maxHands && this.handsPlayed >= this.config.maxHands) {
+      this.isRunning = false;
+      
+      const state = this.game.getState();
+      // Find player with most chips
+      const playersWithChips = state.players.filter(p => p.chips > 0);
+      if (playersWithChips.length > 0) {
+        // Sort by chips to find winner
+        const sortedPlayers = [...state.players].sort((a, b) => b.chips - a.chips);
+        const winner = sortedPlayers[0];
+        
+        // Ensure winner gets any remaining pot
+        if (state.pot > 0) {
+          winner.chips += state.pot;
+        }
+        
+        // Add game end message
+        const winnerMessage: ChatMessage = {
+          modelName: 'System',
+          timestamp: Date.now(),
+          phase: 'finished',
+          action: 'win',
+          decision: `🏆 ${winner.name} wins the game with ${winner.chips} chips after ${this.handsPlayed} hands!`,
+          emoji: '🏆',
+          role: 'system',
+        };
+        chatHistory.addMessage(winnerMessage);
+      }
+      
+      // Save final state and update lobby status
+      if (this.gameId) {
+        await this.saveGameStateToDB().catch(console.error);
+        // Update lobby status to finished
+        try {
+          const { query } = await import('@/lib/db/postgres');
+          await query(
+            `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
+            [this.gameId]
+          );
+          // Emit lobby update
+          if (global.io) {
+            global.io.emit('lobby-update');
+          }
+        } catch (error) {
+          console.error('Error updating lobby status:', error);
+        }
+      }
+      
+      return; // STOP - max hands reached
+    }
+    
+    // Check if game should end IMMEDIATELY (when only one player has chips, they win)
+    // This check happens AFTER pot distribution, so if a player won all chips, stop now
+    const state = this.game.getState();
+    const playersWithChips = state.players.filter(p => p.chips > 0);
+    if (playersWithChips.length <= 1) {
+      this.isRunning = false;
+      
+      // Ensure winner gets any remaining pot
+      if (playersWithChips.length === 1 && state.pot > 0) {
+        playersWithChips[0].chips += state.pot;
+      }
+      
+      // Save final state and update lobby status
+      if (this.gameId) {
+        await this.saveGameStateToDB().catch(console.error);
+        // Update lobby status to finished
+        try {
+          const { query } = await import('@/lib/db/postgres');
+          await query(
+            `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
+            [this.gameId]
+          );
+          // Emit lobby update
+          if (global.io) {
+            global.io.emit('lobby-update');
+          }
+        } catch (error) {
+          console.error('Error updating lobby status:', error);
+        }
+      }
+      
+      // Add game end message
+      if (playersWithChips.length === 1) {
+        const winnerMessage: ChatMessage = {
+          modelName: 'System',
+          timestamp: Date.now(),
+          phase: 'finished',
+          action: 'win',
+          decision: `🏆 ${playersWithChips[0].name} wins the game with all chips!`,
+          emoji: '🏆',
+          role: 'system',
+        };
+        chatHistory.addMessage(winnerMessage);
+      }
+      
+      return; // STOP IMMEDIATELY - do not continue to next hand
+    }
+    
+    // Continue to next hand only if game is still running AND multiple players have chips
     if (this.isRunning) {
       await new Promise(resolve => setTimeout(resolve, 3000));
       await this.playHand();
@@ -249,29 +488,88 @@ export class GameManager {
     const state = this.game.getState();
     this.handsPlayed++;
 
-    // Determine winners and record stats
+    // Check if game should end (only one player with chips total, regardless of active status)
+    const allPlayersWithChips = state.players.filter(p => p.chips > 0);
+    if (allPlayersWithChips.length <= 1) {
+      // Game ends - only one player has chips
+      if (allPlayersWithChips.length === 1) {
+        const winner = allPlayersWithChips[0];
+        // Only evaluate hand if we have enough cards (at least 5 total)
+        let handValue = 0;
+        const totalCards = winner.hand.length + state.communityCards.length;
+        if (totalCards >= 5) {
+          try {
+            handValue = evaluateHand([...winner.hand, ...state.communityCards]).value;
+          } catch (error) {
+            console.warn(`[evaluateHand] Could not evaluate winner hand: ${error}`);
+            handValue = 0;
+          }
+        }
+        this.evaluator.recordHandResult(winner.id, true, winner.chips, handValue);
+        
+        // Record losers
+        state.players
+          .filter(p => p.id !== winner.id)
+          .forEach(loser => {
+            this.evaluator.recordHandResult(loser.id, false, loser.chips);
+          });
+      }
+      
+      // Game ends immediately - one player has all chips
+      this.isRunning = false;
+      return;
+    }
+
+    // Determine winners and record stats for active players in this hand
     const activePlayers = state.players.filter(p => p.isActive && p.chips > 0);
     
-    if (activePlayers.length === 1) {
-      // Only one player left - they win
-      const winner = activePlayers[0];
-      const handValue = state.communityCards.length >= 3
-        ? evaluateHand([...winner.hand, ...state.communityCards]).value
-        : 0;
-      this.evaluator.recordHandResult(winner.id, true, winner.chips, handValue);
+    if (state.phase === 'showdown') {
+      // If only one active player, they win automatically (pot already distributed)
+      if (activePlayers.length === 1) {
+        const winner = activePlayers[0];
+        // Try to evaluate hand if we have enough cards, otherwise use 0
+        let handValue = 0;
+        const totalCards = winner.hand.length + state.communityCards.length;
+        if (totalCards >= 5) {
+          try {
+            handValue = evaluateHand([...winner.hand, ...state.communityCards]).value;
+          } catch (error) {
+            console.warn(`[evaluateHand] Could not evaluate winner hand: ${error}`);
+          }
+        }
+        this.evaluator.recordHandResult(winner.id, true, winner.chips, handValue);
+        
+        // Record losers (players who folded)
+        state.players
+          .filter(p => p.id !== winner.id && !p.isActive)
+          .forEach(loser => {
+            this.evaluator.recordHandResult(loser.id, false, loser.chips);
+          });
+        return;
+      }
       
-      // Record losers
-      state.players
-        .filter(p => p.id !== winner.id && p.chips === 0)
-        .forEach(loser => {
-          this.evaluator.recordHandResult(loser.id, false, loser.chips);
-        });
-    } else if (state.phase === 'showdown') {
       // Evaluate all hands at showdown
-      const evaluations = activePlayers.map(player => ({
-        player,
-        evaluation: evaluateHand([...player.hand, ...state.communityCards]),
-      }));
+      // Only evaluate if we have enough cards (at least 3 community cards + 2 hole cards = 5 total)
+      const evaluations = activePlayers
+        .filter(player => {
+          const totalCards = player.hand.length + state.communityCards.length;
+          if (totalCards < 5) {
+            console.warn(`[evaluateHand] Skipping evaluation for ${player.name}: only ${totalCards} cards (hand: ${player.hand.length}, community: ${state.communityCards.length})`);
+            return false;
+          }
+          return true;
+        })
+        .map(player => ({
+          player,
+          evaluation: evaluateHand([...player.hand, ...state.communityCards]),
+        }));
+      
+      // If no valid evaluations (all players folded before flop), skip showdown evaluation
+      if (evaluations.length === 0) {
+        console.log('[evaluateHand] No valid hands to evaluate (all players folded before flop)');
+        // Pot was already distributed to the last remaining player
+        return;
+      }
 
       evaluations.sort((a, b) => b.evaluation.value - a.evaluation.value);
       const winningValue = evaluations[0].evaluation.value;
@@ -294,6 +592,21 @@ export class GameManager {
             evaluation?.evaluation.value
           );
         });
+      
+      // Check if a player now has all chips after pot distribution
+      // Pot was distributed in PokerGame.distributePot(), check state now
+      const stateAfterPotDistribution = this.game.getState();
+      const playersWithChipsAfterPot = stateAfterPotDistribution.players.filter(p => p.chips > 0);
+      
+      console.log(`[evaluateHand] After pot distribution - Players with chips: ${playersWithChipsAfterPot.length}`,
+        playersWithChipsAfterPot.map(p => `${p.name}: ${p.chips} chips`));
+      
+      if (playersWithChipsAfterPot.length <= 1) {
+        console.log(`[evaluateHand] Game ending: Only ${playersWithChipsAfterPot.length} player(s) with chips after pot distribution`);
+        // A player has won all chips - game ends immediately
+        this.isRunning = false;
+        return;
+      }
     }
   }
 
@@ -313,8 +626,78 @@ export class GameManager {
     return this.isRunning;
   }
 
-  stopGame(): void {
-    this.isRunning = false;
+  getGameId(): string | null {
+    return this.gameId;
+  }
+
+  async saveGameStateToDB(): Promise<void> {
+    if (!this.gameId) return;
+
+    try {
+      // Check if DATABASE_URL is configured
+      if (!process.env.DATABASE_URL) {
+        // Emit Socket.io event even without database
+        if (global.io) {
+          const gameData = {
+            game_id: this.gameId,
+            game_state: this.getGameState(),
+            stats: this.getStats(),
+            rankings: this.getRankings(),
+            is_running: this.isRunning,
+            chat_messages: chatHistory.getAllMessages(),
+            simulator_status: getSimulatorStatus(),
+          };
+          global.io.to(`game-${this.gameId}`).emit('game-state', gameData);
+        }
+        return;
+      }
+
+      const gameState = this.getGameState();
+      const stats = this.getStats();
+      const rankings = this.getRankings();
+      const chatMessages = chatHistory.getAllMessages();
+      const simulatorStatus = getSimulatorStatus();
+
+      // Save directly to database
+      await query(
+        `INSERT INTO game_plays (game_id, game_state, stats, rankings, is_running, chat_messages, simulator_status, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+         ON CONFLICT (game_id) 
+         DO UPDATE SET 
+           game_state = EXCLUDED.game_state,
+           stats = EXCLUDED.stats,
+           rankings = EXCLUDED.rankings,
+           is_running = EXCLUDED.is_running,
+           chat_messages = EXCLUDED.chat_messages,
+           simulator_status = EXCLUDED.simulator_status,
+           updated_at = NOW()`,
+        [
+          this.gameId,
+          JSON.stringify(gameState),
+          JSON.stringify(stats || []),
+          JSON.stringify(rankings || []),
+          this.isRunning || false,
+          JSON.stringify(chatMessages || []),
+          JSON.stringify(simulatorStatus),
+        ]
+      );
+
+      // Emit Socket.io event for real-time updates
+      if (global.io) {
+        const gameData = {
+          game_id: this.gameId,
+          game_state: gameState,
+          stats: stats || [],
+          rankings: rankings || [],
+          is_running: this.isRunning || false,
+          chat_messages: chatMessages || [],
+          simulator_status: simulatorStatus,
+        };
+        global.io.to(`game-${this.gameId}`).emit('game-state', gameData);
+      }
+    } catch (error) {
+      console.error('Error saving game state to database:', error);
+    }
   }
 
   private async getDecisionWithHistory(

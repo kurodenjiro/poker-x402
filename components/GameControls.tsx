@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,7 @@ interface GameControlsProps {
 const AVAILABLE_MODELS = ['ChatGPT', 'Gemini', 'Grok', 'Claude Sonnet'];
 
 export default function GameControls({ onStart, onStop, isRunning, isLoading }: GameControlsProps) {
+  const router = useRouter();
   const [selectedModels, setSelectedModels] = useState<string[]>(AVAILABLE_MODELS);
   const [startingChips, setStartingChips] = useState(1000);
   const [smallBlind, setSmallBlind] = useState(10);
@@ -133,7 +135,7 @@ export default function GameControls({ onStart, onStop, isRunning, isLoading }: 
           <Button
             onClick={handleStart}
             disabled={isLoading || selectedModels.length < 2 || isRunning}
-            className="bg-green-500 text-white hover:bg-green-600"
+            className="bg-green-500 text-white hover:bg-green-600 w-full"
           >
             {isLoading ? 'Starting...' : 'Start Game'}
           </Button>

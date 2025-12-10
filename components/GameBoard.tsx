@@ -9,6 +9,7 @@ import { ChatMessage } from '@/lib/ai/chat-history';
 import { evaluateHand } from '@/lib/poker/cards';
 import { HandRank } from '@/lib/poker/types';
 import { cn } from '@/lib/utils';
+import AnimatedChips from '@/components/AnimatedChips';
 
 function getActionEmoji(action: string): string {
   const emojiMap: Record<string, string> = {
@@ -35,6 +36,20 @@ const HAND_RANK_MAP: Record<HandRank, { rank: number; name: string }> = {
   'high-card': { rank: 10, name: 'High Card' },
 };
 
+// Color mapping for hand ranks (for comparison feature)
+const HAND_RANK_COLORS: Record<number, string> = {
+  1: 'from-yellow-400 to-yellow-600', // Royal Flush - Gold
+  2: 'from-purple-500 to-purple-700', // Straight Flush - Purple
+  3: 'from-red-500 to-red-700', // Four of a Kind - Red
+  4: 'from-orange-500 to-orange-700', // Full House - Orange
+  5: 'from-blue-500 to-blue-700', // Flush - Blue
+  6: 'from-green-500 to-green-700', // Straight - Green
+  7: 'from-teal-500 to-teal-700', // Three of a Kind - Teal
+  8: 'from-pink-500 to-pink-700', // Two Pair - Pink
+  9: 'from-indigo-500 to-indigo-700', // One Pair - Indigo
+  10: 'from-gray-400 to-gray-600', // High Card - Gray
+};
+
 function getHandInfo(playerHand: any[], communityCards: any[]): { rank: number; name: string } | null {
   if (playerHand.length < 2) return null;
   if (communityCards.length < 3) return null;
@@ -56,12 +71,20 @@ interface GameBoardProps {
   rankings: ModelStats[];
   isRunning: boolean;
   chatMessages?: ChatMessage[];
+  isChatHidden?: boolean;
+  gameTime?: number;
 }
 
-export default function GameBoard({ gameState, stats, rankings, isRunning, chatMessages = [] }: GameBoardProps) {
+export default function GameBoard({ gameState, stats, rankings, isRunning, chatMessages = [], isChatHidden = false, gameTime = 0 }: GameBoardProps) {
   // Track previous stats to detect wins/losses
   const prevStatsRef = useRef<Map<string, { handsWon: number; handsPlayed: number; totalChips: number }>>(new Map());
   const [winLossAnimations, setWinLossAnimations] = useState<Map<string, { type: 'win' | 'loss'; profit: number } | null>>(new Map());
+  
+  // Track previous chip values for animation
+  const prevChipsRef = useRef<Map<string, number>>(new Map());
+  const [chipAnimations, setChipAnimations] = useState<Map<string, { from: number; to: number; isAnimating: boolean }>>(new Map());
+  // Track displayed chip values (may be delayed during win/loss animations)
+  const [displayedChips, setDisplayedChips] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!stats || stats.length === 0) return;
@@ -113,16 +136,223 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     }
   }, [stats]);
 
+  // Track chip changes for animation
+  // Delay chip updates if there's an active win/loss animation
+  useEffect(() => {
+    if (!gameState || !gameState.players) return;
+
+    const newChipAnimations = new Map<string, { from: number; to: number; isAnimating: boolean }>();
+    
+    gameState.players.forEach(player => {
+      const prevChips = prevChipsRef.current.get(player.id);
+      const currentChips = player.chips;
+      
+      // Find the player's model stat to check for win/loss animation
+      const modelStat = rankings.find(r => r.modelName === player.name);
+      const hasWinLossAnimation = modelStat && winLossAnimations.has(modelStat.modelId);
+      
+      if (prevChips !== undefined && prevChips !== currentChips) {
+        if (hasWinLossAnimation) {
+          // Delay chip update until win/loss animation completes (4 seconds)
+          // Keep showing old chips during win/loss animation
+          setDisplayedChips(prev => {
+            const updated = new Map(prev);
+            updated.set(player.id, prevChips); // Show old value
+            return updated;
+          });
+          
+          // Schedule chip animation to start after win/loss animation
+          setTimeout(() => {
+            setChipAnimations(prev => {
+              const updated = new Map(prev);
+              updated.set(player.id, {
+                from: prevChips,
+                to: currentChips,
+                isAnimating: true,
+              });
+              return updated;
+            });
+            
+            // Update displayed chips to trigger animation
+            setDisplayedChips(prev => {
+              const updated = new Map(prev);
+              updated.set(player.id, currentChips);
+              return updated;
+            });
+            
+            // Clear animation after it completes
+            setTimeout(() => {
+              setChipAnimations(prev => {
+                const updated = new Map(prev);
+                const anim = updated.get(player.id);
+                if (anim) {
+                  updated.set(player.id, { ...anim, isAnimating: false });
+                }
+                return updated;
+              });
+            }, 1500); // Chip animation duration
+            
+            // Update previous chips after animation starts
+            prevChipsRef.current.set(player.id, currentChips);
+          }, 4000); // Wait for win/loss animation to complete
+        } else {
+          // No win/loss animation - update chips immediately
+          newChipAnimations.set(player.id, {
+            from: prevChips,
+            to: currentChips,
+            isAnimating: true,
+          });
+          
+          // Update displayed chips immediately
+          setDisplayedChips(prev => {
+            const updated = new Map(prev);
+            updated.set(player.id, currentChips);
+            return updated;
+          });
+          
+          // Clear animation after it completes
+          setTimeout(() => {
+            setChipAnimations(prev => {
+              const updated = new Map(prev);
+              const anim = updated.get(player.id);
+              if (anim) {
+                updated.set(player.id, { ...anim, isAnimating: false });
+              }
+              return updated;
+            });
+          }, 1500); // Animation duration
+          
+          // Update previous chips
+          prevChipsRef.current.set(player.id, currentChips);
+        }
+      } else if (prevChips === undefined) {
+        // First time seeing this player - just set the value
+        prevChipsRef.current.set(player.id, currentChips);
+        setDisplayedChips(prev => {
+          const updated = new Map(prev);
+          updated.set(player.id, currentChips);
+          return updated;
+        });
+      }
+    });
+
+    if (newChipAnimations.size > 0) {
+      setChipAnimations(prev => {
+        const updated = new Map(prev);
+        newChipAnimations.forEach((anim, playerId) => {
+          updated.set(playerId, anim);
+        });
+        return updated;
+      });
+    }
+  }, [gameState, rankings, winLossAnimations]);
+
   if (!gameState || rankings.length === 0) {
     return (
       <div className="text-center py-20 text-gray-500">
-        <p className="text-lg">No game in progress. Start a new game to begin!</p>
+        <p className="text-lg">Loading...</p>
       </div>
     );
   }
 
   const activePlayers = gameState.players.filter(p => p.isActive && p.chips > 0);
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+
+  // Calculate hand ranks for all players at showdown for color matching
+  const handRankMap = new Map<string, number>();
+  if (gameState.phase === 'showdown' && gameState.communityCards.length >= 3) {
+    gameState.players.forEach(player => {
+      if (player.hand.length >= 2) {
+        const handInfo = getHandInfo(player.hand, gameState.communityCards);
+        if (handInfo) {
+          handRankMap.set(player.id, handInfo.rank);
+        }
+      }
+    });
+  }
+
+  // Group players by hand rank for color matching
+  const rankGroups = new Map<number, string[]>();
+  handRankMap.forEach((rank, playerId) => {
+    if (!rankGroups.has(rank)) {
+      rankGroups.set(rank, []);
+    }
+    rankGroups.get(rank)!.push(playerId);
+  });
+
+  // Calculate card matches (same rank or suit) for color matching
+  // Match colors for cards that are part of the same match group
+  const cardMatchColors = new Map<string, string>();
+  const matchGroups: Array<{ cards: Array<{ card: any; source: 'community' | string }> }> = [];
+  
+  if (gameState.communityCards.length >= 3) {
+    // Find all matching cards (same rank or suit)
+    const allCards: Array<{ card: any; source: 'community' | string }> = [
+      ...gameState.communityCards.map(c => ({ card: c, source: 'community' as const })),
+      ...gameState.players.flatMap(p => 
+        p.hand.map(c => ({ card: c, source: p.id }))
+      )
+    ];
+
+    // Group cards by rank
+    const rankGroups: Map<string, Array<{ card: any; source: 'community' | string }>> = new Map();
+    allCards.forEach(({ card, source }) => {
+      if (!rankGroups.has(card.rank)) {
+        rankGroups.set(card.rank, []);
+      }
+      rankGroups.get(card.rank)!.push({ card, source });
+    });
+
+    // Group cards by suit
+    const suitGroups: Map<string, Array<{ card: any; source: 'community' | string }>> = new Map();
+    allCards.forEach(({ card, source }) => {
+      if (!suitGroups.has(card.suit)) {
+        suitGroups.set(card.suit, []);
+      }
+      suitGroups.get(card.suit)!.push({ card, source });
+    });
+
+    // Generate colors for match groups
+    const matchColors = [
+      'ring-4 ring-yellow-400 border-yellow-500',
+      'ring-4 ring-blue-400 border-blue-500',
+      'ring-4 ring-green-400 border-green-500',
+      'ring-4 ring-purple-400 border-purple-500',
+      'ring-4 ring-pink-400 border-pink-500',
+      'ring-4 ring-orange-400 border-orange-500',
+      'ring-4 ring-red-400 border-red-500',
+      'ring-4 ring-indigo-400 border-indigo-500',
+    ];
+
+    let colorIndex = 0;
+    
+    // Assign colors to rank matches (only if 2+ cards match)
+    rankGroups.forEach((cards) => {
+      if (cards.length >= 2) {
+        const color = matchColors[colorIndex % matchColors.length];
+        cards.forEach(({ card, source }) => {
+          const cardKey = `${card.rank}-${card.suit}-${source}`;
+          cardMatchColors.set(cardKey, color);
+        });
+        colorIndex++;
+      }
+    });
+
+    // Assign colors to suit matches (only if 3+ cards match, for flushes)
+    suitGroups.forEach((cards) => {
+      if (cards.length >= 3) {
+        const color = matchColors[colorIndex % matchColors.length];
+        cards.forEach(({ card, source }) => {
+          const cardKey = `${card.rank}-${card.suit}-${source}`;
+          // Only set if not already set by rank match
+          if (!cardMatchColors.has(cardKey)) {
+            cardMatchColors.set(cardKey, color);
+          }
+        });
+        colorIndex++;
+      }
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -145,7 +375,14 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
         <Card className="px-6 py-4 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 shadow-lg min-w-[140px]">
           <div className="text-center">
             <div className="text-xs font-semibold text-purple-700 mb-1 uppercase tracking-wider">Hand</div>
-            <div className="text-3xl font-bold text-purple-800">#{gameState.round}</div>
+            <div className="flex items-center justify-center gap-2">
+              <div className="text-3xl font-bold text-purple-800">#{gameState.round}</div>
+              {gameTime > 0 && (
+                <div className="text-lg font-mono font-semibold text-purple-600">
+                  {gameTime.toFixed(1)}s
+                </div>
+              )}
+            </div>
           </div>
         </Card>
       </div>
@@ -158,15 +395,20 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           </div>
           <div className="flex gap-3 justify-center items-center min-h-[120px]">
             {gameState.communityCards.length > 0 ? (
-              gameState.communityCards.map((card, index) => (
-                <CardComponent 
-                  key={index} 
-                  card={card} 
-                  size="large" 
-                  index={index}
-                  isDealing={isRunning}
-                />
-              ))
+              gameState.communityCards.map((card, index) => {
+                const cardKey = `${card.rank}-${card.suit}-community`;
+                const matchColor = cardMatchColors.get(cardKey);
+                return (
+                  <CardComponent 
+                    key={index} 
+                    card={card} 
+                    size="large" 
+                    index={index}
+                    isDealing={isRunning}
+                    matchColor={matchColor}
+                  />
+                );
+              })
             ) : (
               <div className="flex gap-3 justify-center">
                 {/* Placeholder cards for visual consistency */}
@@ -187,7 +429,12 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
       </div>
 
       {/* Model Panels - Vertical Layout like Wordle */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className={cn(
+        "grid gap-4",
+        isChatHidden 
+          ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-4" 
+          : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+      )}>
         {rankings.map((modelStat, index) => {
           const player = gameState.players.find(p => p.name === modelStat.modelName);
           if (!player) return null;
@@ -197,6 +444,11 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           const animationData = winLossAnimations.get(modelStat.modelId);
           const animationState = animationData?.type || null;
           const profitAmount = animationData?.profit || 0;
+          
+          // Get player's hand rank for color matching
+          const playerHandRank = handRankMap.get(player.id);
+          const sameRankPlayers = playerHandRank ? rankGroups.get(playerHandRank) || [] : [];
+          const hasHandMatch = sameRankPlayers.length > 1;
           
           // Get only the most recent message for this player (exclude thinking/observing messages)
           const playerRecentMessages = chatMessages
@@ -233,7 +485,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   rank === 1 && 'ring-2 ring-yellow-400 border-yellow-300',
                   animationState === 'win' && 'animate-win-celebration ring-4 ring-green-400',
                   animationState === 'loss' && 'animate-loss-shake ring-4 ring-red-400',
-                  !player.isActive && 'opacity-40 transition-opacity duration-500'
+                  player.chips <= 0 && 'opacity-40 transition-opacity duration-500'
                 )}
               >
               {/* Messenger Balloon - Inside Card */}
@@ -371,26 +623,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                       <span className="text-lg">👑</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-600">
-                    <span className="font-medium">
-                      {modelStat.handsWon}/{modelStat.handsPlayed} wins
-                    </span>
-                    <span>•</span>
-                    <span>
-                      {((modelStat.handsWon / Math.max(modelStat.handsPlayed, 1)) * 100).toFixed(0)}% win rate
-                    </span>
-                    {modelStat.netProfit !== 0 && (
-                      <>
-                        <span>•</span>
-                        <span className={cn(
-                          "font-semibold",
-                          modelStat.netProfit >= 0 ? "text-green-600" : "text-red-600"
-                        )}>
-                          {modelStat.netProfit >= 0 ? '+' : ''}${modelStat.netProfit.toLocaleString()} profit
-                        </span>
-                      </>
-                    )}
-                  </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   {isCurrentPlayer && (
@@ -411,7 +643,12 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               <div className="grid grid-cols-2 gap-4 mb-5">
                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-3 border border-gray-200 shadow-sm">
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Chips</div>
-                  <div className="text-2xl font-bold text-gray-900">${modelStat.totalChips.toLocaleString()}</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    <AnimatedChips
+                      value={displayedChips.get(player.id) ?? player.chips}
+                      isAnimating={chipAnimations.get(player.id)?.isAnimating || false}
+                    />
+                  </div>
                 </div>
                 <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-3 border border-gray-200 shadow-sm">
                   <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bet</div>
@@ -437,31 +674,50 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 <div className="mb-5">
                   <div className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Hole Cards</div>
                   <div className="flex gap-3 justify-center">
-                    {player.hand.map((card, cardIndex) => (
-                      <CardComponent
-                        key={cardIndex}
-                        card={card}
-                        isRevealed={gameState.phase === 'showdown' || isCurrentPlayer}
-                        index={cardIndex}
-                        isDealing={isRunning}
-                      />
-                    ))}
+                    {player.hand.map((card, cardIndex) => {
+                      const cardKey = `${card.rank}-${card.suit}-${player.id}`;
+                      const matchColor = cardMatchColors.get(cardKey);
+                      return (
+                        <CardComponent
+                          key={cardIndex}
+                          card={card}
+                          isRevealed={gameState.phase === 'showdown' || (isCurrentPlayer && gameState.phase !== 'finished')}
+                          index={cardIndex}
+                          isDealing={isRunning}
+                          matchColor={matchColor}
+                        />
+                      );
+                    })}
                   </div>
                   
-                  {/* Hand Rank and Name */}
-                  {gameState.communityCards.length >= 3 && (gameState.phase === 'showdown' || isCurrentPlayer) && (
+                  {/* Hand Rank and Name with Color Matching */}
+                  {gameState.communityCards.length >= 3 && (gameState.phase === 'showdown' || (isCurrentPlayer && gameState.phase !== 'finished')) && (
                     (() => {
                       const handInfo = getHandInfo(player.hand, gameState.communityCards);
-                      return handInfo ? (
+                      if (!handInfo) return null;
+                      
+                      // Get color based on hand rank, with matching for same ranks
+                      const colorClass = HAND_RANK_COLORS[handInfo.rank] || 'from-purple-500 to-purple-600';
+                      
+                      return (
                         <div className="mt-4 flex items-center justify-center">
-                          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg px-4 py-2 shadow-lg">
+                          <div className={cn(
+                            "bg-gradient-to-r text-white rounded-lg px-4 py-2 shadow-lg border-2",
+                            colorClass,
+                            hasHandMatch ? 'border-white ring-2 ring-white/50' : 'border-transparent'
+                          )}>
                             <div className="flex items-center gap-2">
                               <span className="text-lg font-bold">#{handInfo.rank}</span>
                               <span className="text-sm font-semibold">{handInfo.name}</span>
+                              {hasHandMatch && (
+                                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                                  {sameRankPlayers.length} tied
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
-                      ) : null;
+                      );
                     })()
                   )}
                 </div>
@@ -469,15 +725,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
 
               {/* Current Status - Enhanced */}
               <div className="space-y-2">
-                {player.lastAction && (
-                  <div className="text-center">
-                    <div className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
-                      <span className="text-lg">{getActionEmoji(player.lastAction)}</span>
-                      <span className="text-xs text-gray-600 font-medium">Last:</span>
-                      <span className="text-xs font-bold text-gray-900 uppercase">{player.lastAction}</span>
-                    </div>
-                  </div>
-                )}
                 {player.isAllIn && (
                   <div className="flex items-center justify-center">
                     <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold px-4 py-1.5 shadow-lg animate-pulse">
@@ -501,13 +748,15 @@ function CardComponent({
   isRevealed = true, 
   size = 'normal',
   index = 0,
-  isDealing = false
+  isDealing = false,
+  matchColor
 }: { 
   card: any | null; 
   isRevealed?: boolean; 
   size?: 'normal' | 'large';
   index?: number;
   isDealing?: boolean;
+  matchColor?: string;
 }) {
   // If no card provided, show back
   if (!card) {
@@ -566,7 +815,8 @@ function CardComponent({
       className={cn(
         cardSize,
         borderRadius,
-        'bg-white border-2 border-gray-400 flex flex-col items-center justify-center shadow-xl font-bold transition-all hover:scale-105',
+        'bg-white border-2 flex flex-col items-center justify-center shadow-xl font-bold transition-all hover:scale-105',
+        matchColor ? matchColor : 'border-gray-400',
         suitColors[card.suit],
         isDealing && 'animate-card-deal'
       )}

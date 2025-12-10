@@ -3,6 +3,7 @@ import { GameManager } from '@/lib/game-manager';
 import { ChatGPTModel, GeminiModel, GrokModel, ClaudeModel } from '@/lib/ai/real-models';
 import { getSimulatorStatus } from '@/lib/ai/simulator';
 import { chatHistory } from '@/lib/ai/chat-history';
+import { query } from '@/lib/db/postgres';
 
 // Store game manager instance (in production, use Redis or database)
 let gameManager: GameManager | null = null;
@@ -34,6 +35,53 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
+        const gameId = body.gameId;
+        
+        if (!gameId) {
+          return NextResponse.json(
+            { error: 'Game ID is required' },
+            { status: 400 }
+          );
+        }
+        
+        // Check if this game is already running
+        const currentGameId = manager.getGameId();
+        if (manager.isGameRunning() && currentGameId === gameId) {
+          // Game is already running for this gameId, don't restart
+          return NextResponse.json({ success: true, message: 'Game already running' });
+        }
+        
+        // Check if a different game is running
+        if (manager.isGameRunning() && currentGameId !== gameId) {
+          return NextResponse.json(
+            { error: `Another game (${currentGameId}) is already running. Cannot start game ${gameId}.` },
+            { status: 409 }
+          );
+        }
+        
+        // Save lobby config if gameId provided
+        if (gameId && process.env.DATABASE_URL) {
+          try {
+            await query(
+              `INSERT INTO lobbies (game_id, config, status, updated_at)
+               VALUES ($1, $2, $3, NOW())
+               ON CONFLICT (game_id) 
+               DO UPDATE SET 
+                 config = EXCLUDED.config,
+                 status = EXCLUDED.status,
+                 updated_at = NOW()`,
+              [gameId, JSON.stringify(config), 'running']
+            );
+            // Emit lobby update for real-time home page updates
+            if (global.io) {
+              global.io.emit('lobby-update');
+            }
+          } catch (error) {
+            console.error('Error saving lobby (non-fatal):', error);
+            // Continue even if database save fails
+          }
+        }
+        
         // Start game in background (don't await)
         manager.startGame({
           modelNames: config.modelNames,
@@ -41,13 +89,16 @@ export async function POST(request: NextRequest) {
           smallBlind: config.smallBlind || 10,
           bigBlind: config.bigBlind || 20,
           maxHands: config.maxHands || 10,
-        }).catch(error => {
+        }, gameId).catch(error => {
           console.error('Error in game execution:', error);
         });
         return NextResponse.json({ success: true });
 
       case 'stop':
-        manager.stopGame();
+        manager.isRunning = false;
+        if (manager.getGameId()) {
+          manager.saveGameStateToDB().catch(console.error);
+        }
         return NextResponse.json({ success: true });
 
       case 'state':
