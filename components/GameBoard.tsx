@@ -257,6 +257,10 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
 
   const activePlayers = gameState.players.filter(p => p.isActive && p.chips > 0);
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  
+  // Find the player with the most chips
+  const maxChips = Math.max(...gameState.players.map(p => p.chips || 0));
+  const playerWithMostChips = gameState.players.find(p => p.chips === maxChips);
 
   // Calculate hand ranks for all players at showdown for color matching
   const handRankMap = new Map<string, number>();
@@ -482,7 +486,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   isCurrentPlayer
                     ? 'border-green-500 shadow-xl ring-4 ring-green-200/50 scale-105'
                     : 'border-green-200 hover:border-green-300',
-                  rank === 1 && 'ring-2 ring-yellow-400 border-yellow-300',
+                  playerWithMostChips && player.id === playerWithMostChips.id && 'ring-2 ring-yellow-400 border-yellow-300',
                   animationState === 'win' && 'animate-win-celebration ring-4 ring-green-400',
                   animationState === 'loss' && 'animate-loss-shake ring-4 ring-red-400',
                   player.chips <= 0 && 'opacity-40 transition-opacity duration-500'
@@ -619,7 +623,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-bold text-xl text-gray-900">{modelStat.modelName}</h3>
-                    {rank === 1 && (
+                    {playerWithMostChips && player.id === playerWithMostChips.id && (
                       <span className="text-lg">👑</span>
                     )}
                   </div>
