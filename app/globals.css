@@ -432,4 +432,27 @@
     animation-direction: alternate;
     animation-duration: 3s;
   }
+
+  @keyframes fly-to-pot {
+    0% {
+      opacity: 1;
+      transform: translate(-50%, -50%) translate(0, 0) scale(1) rotate(0deg);
+    }
+    30% {
+      opacity: 1;
+      transform: translate(-50%, -50%) translate(calc(var(--end-x) * 0.3), calc(var(--end-y) * 0.3 - 30px)) scale(1.1) rotate(90deg);
+    }
+    60% {
+      opacity: 0.9;
+      transform: translate(-50%, -50%) translate(calc(var(--end-x) * 0.7), calc(var(--end-y) * 0.7 - 10px)) scale(1.2) rotate(180deg);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -50%) translate(var(--end-x), var(--end-y)) scale(0.3) rotate(360deg);
+    }
+  }
+
+  .bet-fly-to-pot {
+    animation: fly-to-pot 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
 }

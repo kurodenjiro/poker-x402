@@ -85,41 +85,58 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
   const [chipAnimations, setChipAnimations] = useState<Map<string, { from: number; to: number; isAnimating: boolean }>>(new Map());
   // Track displayed chip values (may be delayed during win/loss animations)
   const [displayedChips, setDisplayedChips] = useState<Map<string, number>>(new Map());
+  
+  // Track bet animations - flying chips from player to pot
+  const prevBetRef = useRef<Map<string, number>>(new Map());
+  const [betAnimations, setBetAnimations] = useState<Map<string, { amount: number; isAnimating: boolean }>>(new Map());
+  const playerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const potRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!stats || stats.length === 0) return;
 
-    const newAnimations = new Map<string, { type: 'win' | 'loss'; profit: number } | null>();
+    const newAnimations = new Map<string, { type: 'win' | 'loss'; profit: number }>();
     
     stats.forEach(stat => {
       const prevStat = prevStatsRef.current.get(stat.modelId);
       
       if (prevStat) {
         const profitChange = stat.totalChips - prevStat.totalChips;
+        const handsPlayedChanged = stat.handsPlayed > prevStat.handsPlayed;
+        const handsWonChanged = stat.handsWon > prevStat.handsWon;
         
-        // Check if handsWon increased (win)
-        if (stat.handsWon > prevStat.handsWon && profitChange > 0) {
-          newAnimations.set(stat.modelId, { type: 'win', profit: profitChange });
-          // Clear animation after 4 seconds
-          setTimeout(() => {
-            setWinLossAnimations(prev => {
-              const updated = new Map(prev);
-              updated.delete(stat.modelId);
-              return updated;
-            });
-          }, 4000);
-        }
-        // Check if handsPlayed increased but handsWon didn't (loss)
-        else if (stat.handsPlayed > prevStat.handsPlayed && stat.handsWon === prevStat.handsWon && profitChange < 0) {
-          newAnimations.set(stat.modelId, { type: 'loss', profit: Math.abs(profitChange) });
-          // Clear animation after 4 seconds
-          setTimeout(() => {
-            setWinLossAnimations(prev => {
-              const updated = new Map(prev);
-              updated.delete(stat.modelId);
-              return updated;
-            });
-          }, 4000);
+        // Only trigger animations when a hand has completed (handsPlayed increased)
+        if (handsPlayedChanged) {
+          console.log(`[Animation] 🎯 Hand completed for ${stat.modelName}:`, {
+            handsPlayed: `${prevStat.handsPlayed} -> ${stat.handsPlayed}`,
+            handsWon: `${prevStat.handsWon} -> ${stat.handsWon}`,
+            profitChange,
+            handsWonChanged,
+            modelId: stat.modelId
+          });
+          
+          // Win: handsWon increased (player won the hand)
+          if (handsWonChanged) {
+            const profitAmount = Math.max(profitChange, 100); // At least 100 for visibility
+            console.log(`[Animation] ✅ Setting WIN animation for ${stat.modelName}: $${profitAmount}`);
+            newAnimations.set(stat.modelId, { type: 'win', profit: profitAmount });
+            // Also set by player name as backup
+            const player = gameState?.players?.find(p => p.name === stat.modelName);
+            if (player) {
+              newAnimations.set(player.id, { type: 'win', profit: profitAmount });
+            }
+          }
+          // Loss: handsPlayed increased but handsWon didn't (player lost the hand)
+          else {
+            const profitAmount = Math.max(Math.abs(profitChange), 100); // At least 100 for visibility
+            console.log(`[Animation] ❌ Setting LOSS animation for ${stat.modelName}: $${profitAmount}`);
+            newAnimations.set(stat.modelId, { type: 'loss', profit: profitAmount });
+            // Also set by player name as backup
+            const player = gameState?.players?.find(p => p.name === stat.modelName);
+            if (player) {
+              newAnimations.set(player.id, { type: 'loss', profit: profitAmount });
+            }
+          }
         }
       }
       
@@ -132,9 +149,29 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     });
 
     if (newAnimations.size > 0) {
-      setWinLossAnimations(newAnimations);
+      console.log(`[Animation] 🚀 Setting ${newAnimations.size} animation(s):`, Array.from(newAnimations.entries()));
+      setWinLossAnimations(prev => {
+        const updated = new Map(prev);
+        newAnimations.forEach((value, key) => {
+          updated.set(key, value);
+          console.log(`[Animation] ✨ Added: ${key} -> ${value.type} $${value.profit}`);
+        });
+        return updated;
+      });
+      
+      // Clear animations after 5 seconds
+      setTimeout(() => {
+        setWinLossAnimations(prev => {
+          const updated = new Map(prev);
+          newAnimations.forEach((_, key) => {
+            updated.delete(key);
+          });
+          console.log(`[Animation] 🧹 Cleared animations`);
+          return updated;
+        });
+      }, 5000);
     }
-  }, [stats]);
+  }, [stats, gameState]);
 
   // Track chip changes for animation
   // Delay chip updates if there's an active win/loss animation
@@ -360,43 +397,31 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
 
   return (
     <div className="space-y-6">
-      {/* Game Info Bar */}
-      <div className="flex items-center justify-center gap-6 mb-6 flex-wrap">
-        <Card className="px-6 py-4 bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 shadow-lg min-w-[140px]">
-          <div className="text-center">
-            <div className="text-xs font-semibold text-green-700 mb-1 uppercase tracking-wider">Pot</div>
-            <div className="text-3xl font-bold text-green-800">${gameState.pot}</div>
-          </div>
-        </Card>
-        <Card className="px-6 py-4 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 shadow-lg min-w-[140px]">
-          <div className="text-center">
-            <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Phase</div>
-            <div className="text-xl font-bold text-blue-800 uppercase tracking-wide">
-              {gameState.phase.replace('-', ' ')}
-            </div>
-          </div>
-        </Card>
-        <Card className="px-6 py-4 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 shadow-lg min-w-[140px]">
-          <div className="text-center">
-            <div className="text-xs font-semibold text-purple-700 mb-1 uppercase tracking-wider">Hand</div>
-            <div className="flex items-center justify-center gap-2">
-              <div className="text-3xl font-bold text-purple-800">#{gameState.round}</div>
-              {gameTime > 0 && (
-                <div className="text-lg font-mono font-semibold text-purple-600">
-                  {gameTime.toFixed(1)}s
-                </div>
-              )}
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Community Cards - Dedicated Space */}
+      {/* Community Cards with Phase and Hand */}
       <div className="mb-8">
         <Card className="px-8 py-6 bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 shadow-lg">
-          <div className="text-center mb-4">
-            <div className="text-sm font-semibold text-yellow-700 uppercase tracking-wider">Community Cards</div>
+          {/* Phase - Community Cards - Hand in one line */}
+          <div className="flex items-center justify-center gap-3 mb-4 text-center">
+            <span className="text-lg font-bold text-blue-800 uppercase tracking-wide">
+              {gameState.phase.replace('-', ' ')}
+            </span>
+            <span className="text-gray-500">-</span>
+            <span className="text-sm font-semibold text-yellow-700 uppercase tracking-wider">Community Cards</span>
+            <span className="text-gray-500">-</span>
+            <span className="text-lg font-bold text-purple-800">
+              #{gameState.round}
+            </span>
+            {gameTime > 0 && (
+              <>
+                <span className="text-gray-500">-</span>
+                <span className="text-sm font-mono font-semibold text-purple-600">
+                  {gameTime.toFixed(1)}s
+                </span>
+              </>
+            )}
           </div>
+          
+          {/* Community Cards */}
           <div className="flex gap-3 justify-center items-center min-h-[120px]">
             {gameState.communityCards.length > 0 ? (
               gameState.communityCards.map((card, index) => {
@@ -429,6 +454,54 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               </div>
             )}
           </div>
+          
+          {/* Pot - Below Community Cards */}
+          <div className="flex items-center justify-center mt-4">
+            <Card ref={potRef} className="px-6 py-4 bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 shadow-lg relative">
+              <div className="text-center">
+                <div className="text-xs font-semibold text-green-700 mb-1 uppercase tracking-wider">Pot</div>
+                <div className="text-3xl font-bold text-green-800">${gameState.pot}</div>
+              </div>
+            </Card>
+          </div>
+          
+          {/* Flying Bet Animations - Chips flying from players to pot */}
+          {Array.from(betAnimations.entries()).map(([playerId, anim]) => {
+            if (!anim.isAnimating) return null;
+            const player = gameState.players.find(p => p.id === playerId);
+            if (!player) return null;
+            
+            const playerCard = playerCardRefs.current.get(playerId);
+            const potElement = potRef.current;
+            
+            if (!playerCard || !potElement) return null;
+            
+            const startRect = playerCard.getBoundingClientRect();
+            const endRect = potElement.getBoundingClientRect();
+            const startX = startRect.left + startRect.width / 2;
+            const startY = startRect.top + startRect.height / 2;
+            const endX = endRect.left + endRect.width / 2;
+            const endY = endRect.top + endRect.height / 2;
+            
+            return (
+              <div
+                key={`bet-fly-${playerId}-${Date.now()}`}
+                className="fixed pointer-events-none z-[10000] bet-fly-to-pot"
+                style={{
+                  left: `${startX}px`,
+                  top: `${startY}px`,
+                  transform: 'translate(-50%, -50%)',
+                  '--end-x': `${endX - startX}px`,
+                  '--end-y': `${endY - startY}px`,
+                } as React.CSSProperties}
+              >
+                <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap">
+                  <span className="text-2xl">💰</span>
+                  <span>${anim.amount.toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })}
         </Card>
       </div>
 
@@ -445,9 +518,33 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
 
           const isCurrentPlayer = player.id === currentPlayer?.id;
           const rank = index + 1;
-          const animationData = winLossAnimations.get(modelStat.modelId);
+          
+          // Try multiple ways to find animation: by modelId, player.id, or modelName
+          let animationData = winLossAnimations.get(modelStat.modelId) || 
+                              winLossAnimations.get(player.id) ||
+                              winLossAnimations.get(modelStat.modelName);
+          
+          // If still not found, try matching by modelName in stats
+          if (!animationData) {
+            const matchingStat = stats.find(s => s.modelName === modelStat.modelName);
+            if (matchingStat) {
+              animationData = winLossAnimations.get(matchingStat.modelId);
+            }
+          }
+          
           const animationState = animationData?.type || null;
           const profitAmount = animationData?.profit || 0;
+          
+          // Debug logging
+          if (animationState) {
+            console.log(`[Animation Display] 🎬 ${modelStat.modelName}:`, {
+              animationState,
+              profitAmount,
+              modelId: modelStat.modelId,
+              playerId: player.id,
+              found: !!animationData
+            });
+          }
           
           // Get player's hand rank for color matching
           const playerHandRank = handRankMap.get(player.id);
@@ -483,10 +580,20 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           const shouldShowMessenger = latestMessage && !isThinking;
 
           return (
-            <div key={modelStat.modelId} className="relative">
+            <div 
+              key={modelStat.modelId} 
+              className="relative"
+              ref={(el) => {
+                if (el && player) {
+                  playerCardRefs.current.set(player.id, el);
+                }
+              }}
+            >
               <Card
                 className={cn(
-                  'p-6 bg-gradient-to-br from-white to-green-50/30 border-2 transition-all rounded-xl shadow-md hover:shadow-lg relative overflow-hidden',
+                  'p-6 bg-gradient-to-br from-white to-green-50/30 border-2 transition-all rounded-xl shadow-md hover:shadow-lg relative',
+                  // Remove overflow-hidden when animation is active to allow animation to show
+                  !animationState && 'overflow-hidden',
                   isCurrentPlayer
                     ? 'border-green-500 shadow-xl ring-4 ring-green-200/50 scale-105'
                     : 'border-green-200 hover:border-green-300',
@@ -556,8 +663,8 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               )}
 
               {/* Win/Loss Animation Overlay */}
-              {animationState === 'win' && profitAmount > 0 && (
-                <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
+              {animationState === 'win' && (
+                <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'visible' }}>
                   {/* Celebration Emojis */}
                   <div className="absolute top-8 left-1/4 text-5xl animate-float-up rotate-12">🎊</div>
                   <div className="absolute top-6 right-1/4 text-4xl animate-float-up-delayed -rotate-12">✨</div>
@@ -592,8 +699,8 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   <div className="absolute top-0 right-1/4 w-2 h-2 bg-pink-400 rounded-full animate-confetti-4"></div>
                 </div>
               )}
-              {animationState === 'loss' && profitAmount > 0 && (
-                <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
+              {animationState === 'loss' && (
+                <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'visible' }}>
                   {/* Loss Emojis */}
                   <div className="absolute top-8 left-1/4 text-4xl animate-float-down rotate-12">💔</div>
                   <div className="absolute top-6 right-1/4 text-5xl animate-float-down-delayed -rotate-12">😢</div>
