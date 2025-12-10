@@ -477,6 +477,10 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
 
           // Get the most recent relevant message (prioritize player's own message)
           const latestMessage = playerRecentMessages[0] || otherPlayerMessages[0];
+          
+          // Hide messenger when current player is still thinking
+          const isThinking = isCurrentPlayer && gameState.phase !== 'finished' && isRunning;
+          const shouldShowMessenger = latestMessage && !isThinking;
 
           return (
             <div key={modelStat.modelId} className="relative">
@@ -493,7 +497,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 )}
               >
               {/* Messenger Balloon - Inside Card */}
-              {latestMessage && (
+              {shouldShowMessenger && (
                 <div className="mb-4">
                   {playerRecentMessages.length > 0 ? (
                     // Show player's own latest message
@@ -552,7 +556,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               )}
 
               {/* Win/Loss Animation Overlay */}
-              {animationState === 'win' && (
+              {animationState === 'win' && profitAmount > 0 && (
                 <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
                   {/* Celebration Emojis */}
                   <div className="absolute top-8 left-1/4 text-5xl animate-float-up rotate-12">🎊</div>
@@ -565,17 +569,17 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                     🎉
                   </div>
                   
-                  {/* Profit Amount - Enhanced */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-20 animate-profit-pop-enhanced">
+                  {/* Profit Amount - Enhanced with larger, more visible display */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-24 animate-profit-pop-enhanced z-20">
                     <div className="relative">
                       {/* Glow effect */}
-                      <div className="absolute inset-0 bg-green-400 rounded-full blur-xl opacity-50 animate-pulse"></div>
-                      {/* Main badge */}
-                      <div className="relative bg-gradient-to-r from-green-500 via-green-600 to-green-500 text-white font-extrabold text-3xl px-8 py-4 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="text-4xl animate-spin-slow">💰</span>
-                          <span className="tracking-wide">+${profitAmount.toLocaleString()}</span>
-                          <span className="text-2xl animate-bounce">🎊</span>
+                      <div className="absolute inset-0 bg-green-400 rounded-full blur-2xl opacity-60 animate-pulse"></div>
+                      {/* Main badge - larger and more prominent */}
+                      <div className="relative bg-gradient-to-r from-green-500 via-green-600 to-green-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
+                        <div className="flex items-center gap-4">
+                          <span className="text-5xl animate-spin-slow">💰</span>
+                          <span className="tracking-wide font-black">+${profitAmount.toLocaleString()}</span>
+                          <span className="text-3xl animate-bounce">🎊</span>
                         </div>
                       </div>
                     </div>
@@ -588,7 +592,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   <div className="absolute top-0 right-1/4 w-2 h-2 bg-pink-400 rounded-full animate-confetti-4"></div>
                 </div>
               )}
-              {animationState === 'loss' && (
+              {animationState === 'loss' && profitAmount > 0 && (
                 <div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none overflow-hidden">
                   {/* Loss Emojis */}
                   <div className="absolute top-8 left-1/4 text-4xl animate-float-down rotate-12">💔</div>
@@ -601,17 +605,17 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                     😔
                   </div>
                   
-                  {/* Loss Amount - Enhanced */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-20 animate-profit-pop-enhanced">
+                  {/* Loss Amount - Enhanced with larger, more visible display */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-24 animate-profit-pop-enhanced z-20">
                     <div className="relative">
                       {/* Glow effect */}
-                      <div className="absolute inset-0 bg-red-400 rounded-full blur-xl opacity-50 animate-pulse"></div>
-                      {/* Main badge */}
-                      <div className="relative bg-gradient-to-r from-red-500 via-red-600 to-red-500 text-white font-extrabold text-3xl px-8 py-4 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="text-4xl animate-shake">💸</span>
-                          <span className="tracking-wide">-${profitAmount.toLocaleString()}</span>
-                          <span className="text-2xl">😢</span>
+                      <div className="absolute inset-0 bg-red-400 rounded-full blur-2xl opacity-60 animate-pulse"></div>
+                      {/* Main badge - larger and more prominent */}
+                      <div className="relative bg-gradient-to-r from-red-500 via-red-600 to-red-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
+                        <div className="flex items-center gap-4">
+                          <span className="text-5xl animate-shake">💸</span>
+                          <span className="tracking-wide font-black">-${profitAmount.toLocaleString()}</span>
+                          <span className="text-3xl">😢</span>
                         </div>
                       </div>
                     </div>
@@ -629,7 +633,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  {isCurrentPlayer && (
+                  {isCurrentPlayer && gameState.phase !== 'finished' && isRunning && (
                     <Badge className="bg-yellow-400 text-black animate-pulse text-xs font-semibold px-3 py-1 flex items-center gap-1.5 shadow-md">
                       <span className="text-sm">🤔</span>
                       <span>Thinking...</span>
@@ -681,11 +685,18 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                     {player.hand.map((card, cardIndex) => {
                       const cardKey = `${card.rank}-${card.suit}-${player.id}`;
                       const matchColor = cardMatchColors.get(cardKey);
+                      // Hide cards if player folded, show if all-in or at showdown or is current player
+                      const hasFolded = player.lastAction === 'fold';
+                      const shouldReveal = !hasFolded && (
+                        gameState.phase === 'showdown' || 
+                        player.isAllIn || 
+                        (isCurrentPlayer && gameState.phase !== 'finished')
+                      );
                       return (
                         <CardComponent
                           key={cardIndex}
                           card={card}
-                          isRevealed={gameState.phase === 'showdown' || (isCurrentPlayer && gameState.phase !== 'finished')}
+                          isRevealed={shouldReveal}
                           index={cardIndex}
                           isDealing={isRunning}
                           matchColor={matchColor}
@@ -695,7 +706,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   </div>
                   
                   {/* Hand Rank and Name with Color Matching */}
-                  {gameState.communityCards.length >= 3 && (gameState.phase === 'showdown' || (isCurrentPlayer && gameState.phase !== 'finished')) && (
+                  {gameState.communityCards.length >= 3 && !(player.lastAction === 'fold') && (gameState.phase === 'showdown' || player.isAllIn || (isCurrentPlayer && gameState.phase !== 'finished')) && (
                     (() => {
                       const handInfo = getHandInfo(player.hand, gameState.communityCards);
                       if (!handInfo) return null;
