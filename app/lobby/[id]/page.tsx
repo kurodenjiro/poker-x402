@@ -65,7 +65,15 @@ export default function LobbyPage() {
   // Initialize Socket.io connection for real-time updates with auto-reconnect
   useEffect(() => {
     setConnectionStatus('connecting');
-    const socketInstance = io(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', {
+    
+    // Use window.location for client-side connection
+    const socketUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    
+    console.log('[Socket] Connecting to:', socketUrl, 'with path: /api/socket');
+    
+    const socketInstance = io(socketUrl, {
       path: '/api/socket',
       reconnection: true,
       reconnectionDelay: 1000,
@@ -73,6 +81,7 @@ export default function LobbyPage() {
       reconnectionAttempts: Infinity,
       timeout: 20000,
       transports: ['websocket', 'polling'],
+      autoConnect: true,
     });
 
     socketInstance.on('connect', () => {

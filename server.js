@@ -26,11 +26,15 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     path: '/api/socket',
     cors: {
-      origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      origin: "*", // Allow all origins in development
       methods: ["GET", "POST"],
       credentials: true,
     },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
   });
+  
+  console.log('Socket.io initialized on path: /api/socket');
 
   // Store io instance globally for use in API routes
   global.io = io;

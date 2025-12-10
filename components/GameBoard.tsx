@@ -28,25 +28,41 @@ function BetFlyAnimation({
 
   useEffect(() => {
     if (!playerCardRef || !potRef) {
-      console.log('[Bet Animation] Missing refs:', { playerCardRef: !!playerCardRef, potRef: !!potRef });
+      console.log('[Bet Animation] ❌ Missing refs:', { playerCardRef: !!playerCardRef, potRef: !!potRef, playerId, amount });
       return;
     }
 
+    console.log('[Bet Animation] 🎬 Starting animation setup for', { playerId, amount });
+
     // Calculate positions after a small delay to ensure DOM is ready
     const timer = setTimeout(() => {
-      const startRect = playerCardRef.getBoundingClientRect();
-      const endRect = potRef.getBoundingClientRect();
-      const startX = startRect.left + startRect.width / 2;
-      const startY = startRect.top + startRect.height / 2;
-      const endX = endRect.left + endRect.width / 2;
-      const endY = endRect.top + endRect.height / 2;
-      
-      console.log('[Bet Animation] Calculated positions:', { startX, startY, endX, endY, amount, deltaX: endX - startX, deltaY: endY - startY });
-      setPositions({ startX, startY, endX, endY });
-    }, 100); // Increased delay to ensure DOM is ready
+      try {
+        const startRect = playerCardRef.getBoundingClientRect();
+        const endRect = potRef.getBoundingClientRect();
+        const startX = startRect.left + startRect.width / 2;
+        const startY = startRect.top + startRect.height / 2;
+        const endX = endRect.left + endRect.width / 2;
+        const endY = endRect.top + endRect.height / 2;
+        
+        console.log('[Bet Animation] ✅ Calculated positions:', { 
+          startX, 
+          startY, 
+          endX, 
+          endY, 
+          amount, 
+          deltaX: endX - startX, 
+          deltaY: endY - startY,
+          startRect: { width: startRect.width, height: startRect.height },
+          endRect: { width: endRect.width, height: endRect.height }
+        });
+        setPositions({ startX, startY, endX, endY });
+      } catch (error) {
+        console.error('[Bet Animation] ❌ Error calculating positions:', error);
+      }
+    }, 150); // Increased delay to ensure DOM is ready
 
     return () => clearTimeout(timer);
-  }, [playerCardRef, potRef, amount]);
+  }, [playerCardRef, potRef, amount, playerId]);
 
   if (!positions) {
     return null;
@@ -57,14 +73,28 @@ function BetFlyAnimation({
 
   // Use requestAnimationFrame to ensure smooth animation
   useEffect(() => {
-    if (!animationRef.current || !positions) return;
+    if (!animationRef.current || !positions) {
+      console.log('[Bet Animation] ⏸️ Animation not ready:', { hasRef: !!animationRef.current, hasPositions: !!positions });
+      return;
+    }
+    
+    console.log('[Bet Animation] 🚀 Starting animation:', { playerId, amount, positions, deltaX, deltaY });
     
     const element = animationRef.current;
     let startTime: number | null = null;
     const duration = 1500; // 1.5 seconds
     
+    // Make sure element is visible
+    element.style.display = 'block';
+    element.style.visibility = 'visible';
+    element.style.opacity = '1';
+    element.style.zIndex = '10000';
+    
     const animate = (currentTime: number) => {
-      if (startTime === null) startTime = currentTime;
+      if (startTime === null) {
+        startTime = currentTime;
+        console.log('[Bet Animation] ▶️ Animation started');
+      }
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
@@ -76,7 +106,7 @@ function BetFlyAnimation({
       const currentY = positions.startY + deltaY * easeOut - (50 * Math.sin(progress * Math.PI)); // Arc effect
       const scale = 1 + (0.2 * Math.sin(progress * Math.PI)); // Scale up then down
       const rotation = progress * 360; // Full rotation
-      const opacity = 1 - progress; // Fade out
+      const opacity = Math.max(0, 1 - progress * 0.8); // Fade out but keep some opacity longer
       
       element.style.left = `${currentX}px`;
       element.style.top = `${currentY}px`;
@@ -85,11 +115,13 @@ function BetFlyAnimation({
       
       if (progress < 1) {
         requestAnimationFrame(animate);
+      } else {
+        console.log('[Bet Animation] ✅ Animation completed');
       }
     };
     
     requestAnimationFrame(animate);
-  }, [positions, deltaX, deltaY]);
+  }, [positions, deltaX, deltaY, playerId, amount]);
 
   return (
     <div
@@ -186,6 +218,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
   
   // Track bet animations - flying chips from player to pot
   const prevBetRef = useRef<Map<string, number>>(new Map());
+  const prevPotRef = useRef<number>(0);
   const [betAnimations, setBetAnimations] = useState<Map<string, { amount: number; isAnimating: boolean }>>(new Map());
   const playerCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const potRef = useRef<HTMLDivElement>(null);
@@ -275,35 +308,58 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
   useEffect(() => {
     if (!gameState || !gameState.players) return;
 
-    gameState.players.forEach(player => {
-      const prevBet = prevBetRef.current.get(player.id) || 0;
-      const currentBet = player.currentBet || 0;
-      
-      // If bet increased, create animation
-      if (currentBet > prevBet) {
-        const betIncrease = currentBet - prevBet;
-        if (betIncrease > 0) {
-          console.log(`[Bet Animation] 💰 ${player.name} bet $${betIncrease} (prev: $${prevBet}, current: $${currentBet})`);
-          setBetAnimations(prev => {
-            const updated = new Map(prev);
-            updated.set(player.id, { amount: betIncrease, isAnimating: true });
-            return updated;
-          });
-          
-          // Clear animation after it completes (1.5 seconds)
-          setTimeout(() => {
+    // Track pot changes - when pot increases, it means someone bet
+    const currentPot = gameState.pot || 0;
+    const prevPot = prevPotRef.current;
+    const potIncrease = currentPot - prevPot;
+    
+    console.log(`[Bet Animation] 🔍 Checking bets - Pot: $${prevPot} -> $${currentPot} (increase: $${potIncrease})`);
+
+    // If pot increased, find which player(s) contributed
+    if (potIncrease > 0) {
+      gameState.players.forEach(player => {
+        const prevTotalBet = prevBetRef.current.get(player.id) || 0;
+        const currentTotalBet = player.totalBetThisRound || 0;
+        
+        console.log(`[Bet Animation] 👤 ${player.name}: totalBetThisRound $${prevTotalBet} -> $${currentTotalBet}`);
+        
+        // If player's total bet this round increased, create animation
+        if (currentTotalBet > prevTotalBet) {
+          const betIncrease = currentTotalBet - prevTotalBet;
+          if (betIncrease > 0) {
+            console.log(`[Bet Animation] 💰 ${player.name} bet $${betIncrease} (prev total: $${prevTotalBet}, current total: $${currentTotalBet})`);
             setBetAnimations(prev => {
               const updated = new Map(prev);
-              updated.delete(player.id);
+              updated.set(player.id, { amount: betIncrease, isAnimating: true });
+              console.log(`[Bet Animation] ✅ Added animation for ${player.name}, total animations: ${updated.size}`);
               return updated;
             });
-          }, 1500);
+            
+            // Clear animation after it completes (1.5 seconds)
+            setTimeout(() => {
+              setBetAnimations(prev => {
+                const updated = new Map(prev);
+                updated.delete(player.id);
+                console.log(`[Bet Animation] 🧹 Cleared animation for ${player.name}`);
+                return updated;
+              });
+            }, 1500);
+          }
         }
-      }
-      
-      // Update previous bet
-      prevBetRef.current.set(player.id, currentBet);
-    });
+        
+        // Update previous total bet
+        prevBetRef.current.set(player.id, currentTotalBet);
+      });
+    } else {
+      // Pot didn't increase, but still update previous bets to track changes
+      gameState.players.forEach(player => {
+        const currentTotalBet = player.totalBetThisRound || 0;
+        prevBetRef.current.set(player.id, currentTotalBet);
+      });
+    }
+    
+    // Update previous pot
+    prevPotRef.current = currentPot;
   }, [gameState]);
 
   // Track chip changes for animation
