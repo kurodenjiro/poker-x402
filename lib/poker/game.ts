@@ -127,10 +127,25 @@ export class PokerGame {
   makeAction(playerId: string, action: Action, amount?: number): boolean {
     const player = this.state.players.find(p => p.id === playerId);
     if (!player || !player.isActive || player.isAllIn) {
+      console.log(`[makeAction] ❌ Invalid player:`, {
+        playerId,
+        playerFound: !!player,
+        isActive: player?.isActive,
+        isAllIn: player?.isAllIn,
+        chips: player?.chips
+      });
       return false;
     }
 
-    if (this.state.players[this.state.currentPlayerIndex].id !== playerId) {
+    const expectedPlayerId = this.state.players[this.state.currentPlayerIndex]?.id;
+    if (expectedPlayerId !== playerId) {
+      console.log(`[makeAction] ❌ Wrong turn:`, {
+        playerId,
+        expectedPlayerId,
+        currentPlayerIndex: this.state.currentPlayerIndex,
+        expectedPlayerName: this.state.players[this.state.currentPlayerIndex]?.name,
+        requestedPlayerName: player.name
+      });
       return false;
     }
 
@@ -216,13 +231,33 @@ export class PokerGame {
       return;
     }
 
+    // Prevent infinite loop - track how many players we've checked
+    let attempts = 0;
+    const maxAttempts = this.state.players.length;
+    const startIndex = this.state.currentPlayerIndex;
+    
     do {
       this.state.currentPlayerIndex = (this.state.currentPlayerIndex + 1) % this.state.players.length;
+      attempts++;
+      
+      // Safety check: if we've checked all players and none are valid, break
+      if (attempts >= maxAttempts) {
+        console.error(`[moveToNextPlayer] ⚠️ Could not find valid next player after ${attempts} attempts. Active players:`, 
+          activePlayers.map(p => `${p.name} (${p.id})`));
+        // Try to find any active player
+        const firstActive = this.state.players.findIndex(p => p.isActive && !p.isAllIn && p.chips > 0);
+        if (firstActive !== -1) {
+          this.state.currentPlayerIndex = firstActive;
+        }
+        break;
+      }
     } while (
       !this.state.players[this.state.currentPlayerIndex].isActive ||
       this.state.players[this.state.currentPlayerIndex].isAllIn ||
       this.state.players[this.state.currentPlayerIndex].chips === 0
     );
+    
+    console.log(`[moveToNextPlayer] Moved from index ${startIndex} to ${this.state.currentPlayerIndex} (${this.state.players[this.state.currentPlayerIndex]?.name})`);
   }
 
   private isBettingRoundComplete(): boolean {

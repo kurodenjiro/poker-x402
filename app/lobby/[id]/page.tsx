@@ -404,6 +404,7 @@ export default function LobbyPage() {
               chatMessages={chatMessages}
               isChatHidden={!showChatPlayground}
               gameTime={gameTime}
+              gameId={gameId}
             />
           </div>
 

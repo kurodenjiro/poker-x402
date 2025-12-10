@@ -31,6 +31,7 @@ export default function Home() {
   const [maxHands, setMaxHands] = useState(10);
   const [lobbies, setLobbies] = useState<Lobby[]>([]);
   const [isLoadingLobbies, setIsLoadingLobbies] = useState(true);
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
 
   // Fetch lobbies on mount and set up Socket.io for real-time updates
   useEffect(() => {
@@ -81,34 +82,43 @@ export default function Home() {
   }, []);
 
   const handleCreateGame = async () => {
-    // Generate a unique game ID
-    const gameId = `game-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    // Disable button and show loading
+    setIsCreatingGame(true);
     
-    // Prepare game config
-    const config = {
-      modelNames: selectedModels,
-      startingChips,
-      smallBlind,
-      bigBlind,
-      maxHands,
-    };
-    
-    // Save config to localStorage
-    localStorage.setItem(`game-config-${gameId}`, JSON.stringify(config));
-    
-    // Save lobby to PostgreSQL
     try {
-      await fetch(`/api/lobby/${gameId}`, {
+      // Generate a unique game ID
+      const gameId = `game-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Prepare game config
+      const config = {
+        modelNames: selectedModels,
+        startingChips,
+        smallBlind,
+        bigBlind,
+        maxHands,
+      };
+      
+      // Save config to localStorage
+      localStorage.setItem(`game-config-${gameId}`, JSON.stringify(config));
+      
+      // Save lobby to PostgreSQL
+      const response = await fetch(`/api/lobby/${gameId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config, status: 'waiting' }),
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create game');
+      }
+      
+      // Navigate to lobby with game ID after successful creation
+      router.push(`/lobby/${gameId}`);
     } catch (error) {
-      console.error('Error saving lobby:', error);
+      console.error('Error creating game:', error);
+      setIsCreatingGame(false); // Re-enable button on error
+      alert('Failed to create game. Please try again.');
     }
-    
-    // Navigate to lobby with game ID
-    router.push(`/lobby/${gameId}`);
   };
 
   const handleJoinLobby = (gameId: string) => {
@@ -224,12 +234,22 @@ export default function Home() {
             <div className="pt-4">
               <Button
                 onClick={handleCreateGame}
-                disabled={selectedModels.length < 2}
-                className="w-full bg-blue-600 text-white hover:bg-blue-700 h-12 text-lg font-semibold"
+                disabled={selectedModels.length < 2 || isCreatingGame}
+                className="w-full bg-blue-600 text-white hover:bg-blue-700 h-12 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Game
+                {isCreatingGame ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating Game...
+                  </span>
+                ) : (
+                  'Create Game'
+                )}
               </Button>
-              {selectedModels.length < 2 && (
+              {selectedModels.length < 2 && !isCreatingGame && (
                 <p className="text-sm text-red-500 mt-2 text-center">
                   Please select at least 2 models to create a game
                 </p>

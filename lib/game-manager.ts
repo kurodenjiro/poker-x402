@@ -76,6 +76,52 @@ export class GameManager {
   private async playHand(): Promise<void> {
     if (!this.game || !this.config) return;
 
+    // Check maxHands BEFORE starting a new hand
+    if (this.config?.maxHands && this.handsPlayed >= this.config.maxHands) {
+      console.log(`[playHand] 🛑 Max hands reached (${this.handsPlayed}/${this.config.maxHands}). Not starting new hand.`);
+      this.isRunning = false;
+      
+      const state = this.game.getState();
+      // Find player with most chips
+      const playersWithChips = state.players.filter(p => p.chips > 0);
+      if (playersWithChips.length > 0) {
+        const sortedPlayers = [...state.players].sort((a, b) => b.chips - a.chips);
+        const winner = sortedPlayers[0];
+        
+        if (state.pot > 0) {
+          winner.chips += state.pot;
+        }
+        
+        const winnerMessage: ChatMessage = {
+          modelName: 'System',
+          timestamp: Date.now(),
+          phase: 'finished',
+          action: 'win',
+          decision: `🏆 ${winner.name} wins the game with ${winner.chips} chips after ${this.handsPlayed} hands!`,
+          emoji: '🏆',
+          role: 'system',
+        };
+        chatHistory.addMessage(winnerMessage);
+      }
+      
+      if (this.gameId) {
+        await this.saveGameStateToDB().catch(console.error);
+        try {
+          const { query } = await import('@/lib/db/postgres');
+          await query(
+            `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
+            [this.gameId]
+          );
+          if (global.io) {
+            global.io.emit('lobby-update');
+          }
+        } catch (error) {
+          console.error('Error updating lobby status:', error);
+        }
+      }
+      return;
+    }
+
     const state = this.game.getState();
     
     // Check if game should end (when only one player has chips, they win)
@@ -221,7 +267,56 @@ export class GameManager {
 
       // Get AI decision with prompt/response tracking
       const decisionResult = await this.getDecisionWithHistory(model, state, currentPlayer);
-      const decision = decisionResult.decision;
+      let decision = decisionResult.decision;
+      
+      // Validate and fix decision before executing
+      const canCheck = state.currentBet === currentPlayer.totalBetThisRound;
+      const callAmount = state.currentBet - currentPlayer.totalBetThisRound;
+      const activePlayers = state.players.filter(p => p.isActive && p.chips > 0);
+      
+      // If only 2 players remain, be more lenient with actions
+      if (activePlayers.length === 2) {
+        console.log(`[playRound] 🎯 Only 2 players remaining. Validating decision for ${currentPlayer.name}:`, {
+          action: decision.action,
+          amount: decision.amount,
+          canCheck,
+          callAmount,
+          playerChips: currentPlayer.chips,
+          currentBet: state.currentBet,
+          playerTotalBet: currentPlayer.totalBetThisRound
+        });
+        
+        // Fix invalid actions when only 2 players remain
+        if (decision.action === 'check' && !canCheck) {
+          // Can't check, must call or fold
+          if (callAmount > 0 && callAmount <= currentPlayer.chips) {
+            console.log(`[playRound] 🔧 Fixing invalid check: converting to call $${callAmount}`);
+            decision = { action: 'call' };
+          } else if (callAmount > currentPlayer.chips) {
+            console.log(`[playRound] 🔧 Fixing invalid check: converting to all-in`);
+            decision = { action: 'all-in' };
+          } else {
+            console.log(`[playRound] 🔧 Fixing invalid check: converting to fold`);
+            decision = { action: 'fold' };
+          }
+        }
+        
+        // Validate raise amount
+        if (decision.action === 'raise' && decision.amount) {
+          const minRaise = state.currentBet - currentPlayer.totalBetThisRound + state.bigBlind;
+          if (decision.amount < minRaise) {
+            console.log(`[playRound] 🔧 Fixing invalid raise amount: ${decision.amount} -> ${minRaise}`);
+            decision.amount = Math.min(minRaise, currentPlayer.chips);
+          }
+          if (decision.amount > currentPlayer.chips) {
+            console.log(`[playRound] 🔧 Fixing raise amount exceeding chips: ${decision.amount} -> ${currentPlayer.chips}`);
+            decision.amount = currentPlayer.chips;
+            if (decision.amount === currentPlayer.chips && decision.amount > 0) {
+              decision = { action: 'all-in' };
+            }
+          }
+        }
+      }
       
       // Add system message with prompt
       const systemMessage: ChatMessage = {
@@ -257,6 +352,21 @@ export class GameManager {
       this.evaluator.recordAction(currentPlayer.id, decision.action);
 
       // Execute action
+      const stateBeforeAction = this.game.getState();
+      const activePlayersBefore = stateBeforeAction.players.filter(p => p.isActive && p.chips > 0);
+      console.log(`[playRound] Executing action for ${currentPlayer.name} (${currentPlayer.id}):`, {
+        action: decision.action,
+        amount: decision.amount,
+        currentPlayerIndex: stateBeforeAction.currentPlayerIndex,
+        expectedPlayerId: stateBeforeAction.players[stateBeforeAction.currentPlayerIndex]?.id,
+        activePlayersCount: activePlayersBefore.length,
+        activePlayers: activePlayersBefore.map(p => `${p.name} (${p.id})`),
+        canCheck: stateBeforeAction.currentBet === currentPlayer.totalBetThisRound,
+        currentBet: stateBeforeAction.currentBet,
+        playerTotalBet: currentPlayer.totalBetThisRound,
+        playerChips: currentPlayer.chips
+      });
+      
       const success = this.game.makeAction(
         currentPlayer.id,
         decision.action,
@@ -264,9 +374,38 @@ export class GameManager {
       );
 
       if (!success) {
-        // Fallback to fold if action failed
-        this.game.makeAction(currentPlayer.id, 'fold');
-        this.evaluator.recordAction(currentPlayer.id, 'fold');
+        console.error(`[playRound] ❌ Action failed for ${currentPlayer.name} (${currentPlayer.id}):`, {
+          action: decision.action,
+          amount: decision.amount,
+          currentPlayerIndex: stateBeforeAction.currentPlayerIndex,
+          expectedPlayerId: stateBeforeAction.players[stateBeforeAction.currentPlayerIndex]?.id,
+          playerId: currentPlayer.id,
+          isActive: currentPlayer.isActive,
+          isAllIn: currentPlayer.isAllIn,
+          chips: currentPlayer.chips,
+          activePlayersCount: activePlayersBefore.length
+        });
+        
+        // Try to understand why it failed before falling back to fold
+        const stateAfterFailure = this.game.getState();
+        const currentPlayerAfter = stateAfterFailure.players.find(p => p.id === currentPlayer.id);
+        console.error(`[playRound] State after failure:`, {
+          currentPlayerIndex: stateAfterFailure.currentPlayerIndex,
+          expectedPlayerId: stateAfterFailure.players[stateAfterFailure.currentPlayerIndex]?.id,
+          playerStillActive: currentPlayerAfter?.isActive,
+          playerStillHasChips: (currentPlayerAfter?.chips || 0) > 0
+        });
+        
+        // Only fold if the player is still active and has chips
+        if (currentPlayerAfter && currentPlayerAfter.isActive && currentPlayerAfter.chips > 0) {
+          console.log(`[playRound] ⚠️ Falling back to fold for ${currentPlayer.name}`);
+          this.game.makeAction(currentPlayer.id, 'fold');
+          this.evaluator.recordAction(currentPlayer.id, 'fold');
+        } else {
+          console.log(`[playRound] ⚠️ Cannot fold - player is no longer active or has no chips`);
+        }
+      } else {
+        console.log(`[playRound] ✅ Action succeeded for ${currentPlayer.name}`);
       }
       
       // Save and emit game state after EVERY action for smooth real-time updates
@@ -375,8 +514,10 @@ export class GameManager {
       this.saveGameStateToDB().catch(console.error);
     }
     
-    // Check if max hands reached
+    // Check if max hands reached - MUST check AFTER evaluateHand() increments handsPlayed
+    console.log(`[playRound] 🔍 Checking maxHands: handsPlayed=${this.handsPlayed}, maxHands=${this.config?.maxHands}, condition=${this.handsPlayed >= (this.config?.maxHands || 0)}`);
     if (this.config?.maxHands && this.handsPlayed >= this.config.maxHands) {
+      console.log(`[playRound] 🛑 MAX HANDS REACHED! Stopping game. handsPlayed=${this.handsPlayed}, maxHands=${this.config.maxHands}`);
       this.isRunning = false;
       
       const state = this.game.getState();
@@ -476,9 +617,19 @@ export class GameManager {
     }
     
     // Continue to next hand only if game is still running AND multiple players have chips
+    // Double-check maxHands before continuing
     if (this.isRunning) {
+      // Check maxHands again before starting next hand (safety check)
+      if (this.config?.maxHands && this.handsPlayed >= this.config.maxHands) {
+        console.log(`[playRound] 🛑 Double-check: Max hands reached. Stopping before next hand.`);
+        this.isRunning = false;
+        return;
+      }
+      console.log(`[playRound] ✅ Continuing to next hand. handsPlayed=${this.handsPlayed}, maxHands=${this.config?.maxHands}`);
       await new Promise(resolve => setTimeout(resolve, 3000));
       await this.playHand();
+    } else {
+      console.log(`[playRound] 🛑 Game stopped. Not continuing to next hand.`);
     }
   }
 
@@ -487,6 +638,7 @@ export class GameManager {
 
     const state = this.game.getState();
     this.handsPlayed++;
+    console.log(`[evaluateHand] Hands played incremented to: ${this.handsPlayed} (maxHands: ${this.config.maxHands})`);
 
     // Check if game should end (only one player with chips total, regardless of active status)
     const allPlayersWithChips = state.players.filter(p => p.chips > 0);

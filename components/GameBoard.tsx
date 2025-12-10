@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { GameState } from '@/lib/poker/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ModelStats } from '@/lib/ai/types';
 import { ChatMessage } from '@/lib/ai/chat-history';
 import { evaluateHand } from '@/lib/poker/cards';
@@ -394,9 +396,13 @@ interface GameBoardProps {
   chatMessages?: ChatMessage[];
   isChatHidden?: boolean;
   gameTime?: number;
+  gameId?: string;
 }
 
-export default function GameBoard({ gameState, stats, rankings, isRunning, chatMessages = [], isChatHidden = false, gameTime = 0 }: GameBoardProps) {
+export default function GameBoard({ gameState, stats, rankings, isRunning, chatMessages = [], isChatHidden = false, gameTime = 0, gameId }: GameBoardProps) {
+  const router = useRouter();
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  
   // Track previous stats to detect wins/losses
   const prevStatsRef = useRef<Map<string, { handsWon: number; handsPlayed: number; totalChips: number }>>(new Map());
   const [winLossAnimations, setWinLossAnimations] = useState<Map<string, { type: 'win' | 'loss'; profit: number } | null>>(new Map());
@@ -784,6 +790,17 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
       });
     }
   }, [gameState, rankings, winLossAnimations]);
+
+  // Show summary modal when game finishes
+  useEffect(() => {
+    if (!isRunning && gameState && rankings.length > 0) {
+      // Small delay to ensure all final updates are complete
+      const timer = setTimeout(() => {
+        setShowSummaryModal(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isRunning, gameState, rankings]);
 
   if (!gameState || rankings.length === 0) {
     return (
@@ -1464,6 +1481,169 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           );
         })}
       </div>
+
+      {/* Summary Modal - Show when game finishes */}
+      {!isRunning && gameState && rankings.length > 0 && showSummaryModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
+          <Card className="bg-gray-100 border-2 border-gray-300 shadow-2xl max-w-2xl w-full relative">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowSummaryModal(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center"
+            >
+              ×
+            </button>
+
+            <div className="p-8">
+              {/* Winner Header - Find player with most chips */}
+              {gameState && (() => {
+                // Find the player with the most chips
+                const playersWithChips = gameState.players.filter(p => p.chips > 0);
+                if (playersWithChips.length === 0) return null;
+                
+                const sortedByChips = [...gameState.players].sort((a, b) => b.chips - a.chips);
+                const winnerPlayer = sortedByChips[0];
+                const winnerStats = rankings.find(r => r.modelName === winnerPlayer.name);
+                
+                return (
+                  <>
+                    <div className="text-center mb-8">
+                      <div className="text-4xl font-bold text-gray-900 mb-2">
+                        {winnerPlayer.name} becomes the winner! 🏆
+                      </div>
+                    </div>
+
+                    {/* Winner Statistics */}
+                    <div className="bg-white rounded-lg p-6 mb-6 border-2 border-yellow-400">
+                      <div className="grid grid-cols-4 gap-4 text-center">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-600 mb-1 uppercase">Total Chips</div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            ${winnerPlayer.chips.toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-600 mb-1 uppercase">Cash</div>
+                          <div className="text-2xl font-bold text-green-600">
+                            ${winnerPlayer.chips.toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-600 mb-1 uppercase">Hands Won</div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            {winnerStats?.handsWon || 0}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-600 mb-1 uppercase">Hands Played</div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            {winnerStats?.handsPlayed || 0}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* Other Players - Show all players except the winner */}
+              {gameState && (() => {
+                // Find the winner (player with most chips)
+                const sortedByChips = [...gameState.players].sort((a, b) => b.chips - a.chips);
+                const winnerPlayer = sortedByChips[0];
+                const otherPlayers = gameState.players.filter(p => p.id !== winnerPlayer.id);
+                
+                // Sort other players by chips (descending)
+                const sortedOtherPlayers = otherPlayers.sort((a, b) => b.chips - a.chips);
+                
+                return (
+                  <div className="mb-6">
+                    <div className="text-lg font-bold text-gray-900 mb-4">Other Players</div>
+                    <div className="space-y-3">
+                      {sortedOtherPlayers.map((player, index) => {
+                        const playerStats = rankings.find(r => r.modelName === player.name);
+                        const playerChips = player.chips;
+                        const isKnockedOut = playerChips <= 0;
+                        
+                        return (
+                          <div key={index} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="text-xl font-bold text-gray-700">{player.name}</div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              {isKnockedOut ? (
+                                <Badge className="bg-red-500 text-white">K.O.</Badge>
+                              ) : (
+                                <>
+                                  <div className="text-lg font-bold text-blue-600">
+                                    ${playerChips.toLocaleString()}
+                                  </div>
+                                  <div className="text-sm text-gray-600">
+                                    ({playerStats?.handsWon || 0} wins)
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Action Buttons */}
+              <div className="flex gap-4">
+                <Button
+                  onClick={() => {
+                    if (!gameState) return;
+                    
+                    // Find the winner (player with most chips)
+                    const sortedByChips = [...gameState.players].sort((a, b) => b.chips - a.chips);
+                    const winnerPlayer = sortedByChips[0];
+                    const winnerStats = rankings.find(r => r.modelName === winnerPlayer.name);
+                    
+                    // Get other players
+                    const otherPlayers = gameState.players
+                      .filter(p => p.id !== winnerPlayer.id)
+                      .sort((a, b) => b.chips - a.chips);
+                    
+                    // Share result functionality
+                    const resultText = `🏆 ${winnerPlayer.name} won the poker game!\n\n` +
+                      `Total Chips: $${winnerPlayer.chips.toLocaleString()}\n` +
+                      `Hands Won: ${winnerStats?.handsWon || 0}/${winnerStats?.handsPlayed || 0}\n\n` +
+                      otherPlayers.map(p => {
+                        const pStats = rankings.find(r => r.modelName === p.name);
+                        return `${p.name}: $${p.chips.toLocaleString()} (${pStats?.handsWon || 0} wins)`;
+                      }).join('\n');
+                    
+                    if (navigator.share) {
+                      navigator.share({
+                        title: 'Poker Game Results',
+                        text: resultText,
+                      });
+                    } else {
+                      navigator.clipboard.writeText(resultText);
+                      alert('Results copied to clipboard!');
+                    }
+                  }}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                >
+                  Share Result
+                </Button>
+                <Button
+                  onClick={() => {
+                    router.push('/');
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-800 text-white"
+                >
+                  Back to Lobby
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
