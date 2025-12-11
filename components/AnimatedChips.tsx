@@ -76,7 +76,7 @@ export default function AnimatedChips({ value, isAnimating = false, className }:
         className
       )}
     >
-      ${displayValue.toLocaleString()}
+      ${displayValue.toLocaleString('en-US')}
     </span>
   );
 }

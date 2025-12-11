@@ -7,6 +7,7 @@ import { chatHistory, ChatMessage } from './ai/chat-history';
 import { getActionEmoji, generateStrategyChat, getCardDealEmoji } from './ai/strategy-chat';
 import { getSimulatorStatus } from './ai/simulator';
 import { query } from './db/postgres';
+import { getPaymentService } from './payments/x402-agent-payments';
 
 export interface GameConfig {
   modelNames: string[];
@@ -62,6 +63,18 @@ export class GameManager {
       config.smallBlind,
       config.bigBlind
     );
+
+    // Register agent wallets for x402 payments
+    // In production, these would come from secure storage or wallet generation
+    const paymentService = getPaymentService();
+    config.modelNames.forEach((modelName, index) => {
+      // Generate or retrieve wallet address for each agent
+      // For now, using a placeholder - in production, generate actual wallets
+      const agentWallet = process.env[`AGENT_WALLET_${modelName.toUpperCase().replace(/\s+/g, '_')}`] || 
+                         `agent_${modelName.toLowerCase().replace(/\s+/g, '_')}_${index}`;
+      paymentService.registerAgentWallet(modelName, agentWallet);
+      console.log(`[X402 Payment] Registered wallet for ${modelName}: ${agentWallet}`);
+    });
 
     this.isRunning = true;
     
@@ -726,6 +739,58 @@ export class GameManager {
       evaluations.sort((a, b) => b.evaluation.value - a.evaluation.value);
       const winningValue = evaluations[0].evaluation.value;
       const winners = evaluations.filter(e => e.evaluation.value === winningValue);
+
+      // Get pot amount before distribution for payment calculation
+      const potBeforeDistribution = state.pot;
+      const totalBets = activePlayers.reduce((sum, p) => sum + (p.totalBetThisRound || 0), 0);
+
+      // Distribute pot first
+      this.game.distributePot();
+
+      // Process x402 agent-to-agent payments
+      try {
+        const paymentService = getPaymentService();
+        const winnerList = winners.map(({ player }) => ({
+          agentName: player.name,
+          chipsWon: Math.floor(potBeforeDistribution / winners.length)
+        }));
+        
+        const loserList = activePlayers
+          .filter(p => !winners.some(w => w.player.id === p.id))
+          .map(p => ({
+            agentName: p.name,
+            chipsLost: p.totalBetThisRound || 0
+          }));
+
+        if (winnerList.length > 0 && loserList.length > 0 && potBeforeDistribution > 0) {
+          console.log('[X402 Payment] 💰 Processing agent-to-agent payments:', { 
+            winners: winnerList, 
+            losers: loserList,
+            pot: potBeforeDistribution 
+          });
+          
+          const payments = await paymentService.distributePot(winnerList, loserList);
+          console.log('[X402 Payment] ✅ Payments processed:', payments);
+          
+          // Add payment messages to chat
+          payments.forEach(payment => {
+            if (payment.status === 'completed' && payment.amount > 0) {
+              const paymentMessage: ChatMessage = {
+                modelName: 'System',
+                timestamp: Date.now(),
+                phase: 'finished',
+                action: 'payment',
+                decision: `💰 ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips (x402)`,
+                emoji: '💰',
+                role: 'system',
+              };
+              chatHistory.addMessage(paymentMessage);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('[X402 Payment] ❌ Error processing agent payments:', error);
+      }
 
       // Record winners
       winners.forEach(({ player, evaluation }) => {

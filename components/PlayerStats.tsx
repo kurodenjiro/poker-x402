@@ -62,7 +62,7 @@ export default function PlayerStats({ stats, rankings }: PlayerStatsProps) {
                     'font-semibold',
                     profit >= 0 ? 'text-green-600' : 'text-red-600'
                   )}>
-                    {profit >= 0 ? '+' : ''}${profit.toLocaleString()}
+                    {profit >= 0 ? '+' : ''}${profit.toLocaleString('en-US')}
                   </span>
                 </div>
               </div>

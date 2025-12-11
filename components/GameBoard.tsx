@@ -162,7 +162,7 @@ function PotDistributionAnimation({
         }}
       >
         <span className="text-2xl">💰</span>
-        <span>+${amount.toLocaleString()}</span>
+        <span>+${amount.toLocaleString('en-US')}</span>
       </div>
     </div>
   );
@@ -328,7 +328,7 @@ function BetFlyAnimation({
         }}
       >
         <span className="text-2xl">💰</span>
-        <span>${amount.toLocaleString()}</span>
+        <span>${amount.toLocaleString('en-US')}</span>
       </div>
     </div>
   );
@@ -1288,7 +1288,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                       <div className="relative bg-gradient-to-r from-green-500 via-green-600 to-green-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
                         <div className="flex items-center gap-4">
                           <span className="text-5xl animate-spin-slow">💰</span>
-                          <span className="tracking-wide font-black">+${profitAmount.toLocaleString()}</span>
+                          <span className="tracking-wide font-black">+${profitAmount.toLocaleString('en-US')}</span>
                           <span className="text-3xl animate-bounce">🎊</span>
                         </div>
                       </div>
@@ -1341,7 +1341,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                       <div className="relative bg-gradient-to-r from-red-500 via-red-600 to-red-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
                         <div className="flex items-center gap-4">
                           <span className="text-5xl animate-shake">💸</span>
-                          <span className="tracking-wide font-black">-${profitAmount.toLocaleString()}</span>
+                          <span className="tracking-wide font-black">-${profitAmount.toLocaleString('en-US')}</span>
                           <span className="text-3xl">😢</span>
                         </div>
                       </div>
@@ -1392,7 +1392,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                       <>
                         <span className="text-2xl">💰</span>
                         <div className="text-xl font-bold text-gray-900">
-                          ${player.currentBet.toLocaleString()}
+                          ${player.currentBet.toLocaleString('en-US')}
                         </div>
                       </>
                     ) : (
@@ -1519,13 +1519,13 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                         <div>
                           <div className="text-xs font-semibold text-gray-600 mb-1 uppercase">Total Chips</div>
                           <div className="text-2xl font-bold text-blue-600">
-                            ${winnerPlayer.chips.toLocaleString()}
+                            ${winnerPlayer.chips.toLocaleString('en-US')}
                           </div>
                         </div>
                         <div>
                           <div className="text-xs font-semibold text-gray-600 mb-1 uppercase">Cash</div>
                           <div className="text-2xl font-bold text-green-600">
-                            ${winnerPlayer.chips.toLocaleString()}
+                            ${winnerPlayer.chips.toLocaleString('en-US')}
                           </div>
                         </div>
                         <div>
@@ -1576,7 +1576,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                               ) : (
                                 <>
                                   <div className="text-lg font-bold text-blue-600">
-                                    ${playerChips.toLocaleString()}
+                                    ${playerChips.toLocaleString('en-US')}
                                   </div>
                                   <div className="text-sm text-gray-600">
                                     ({playerStats?.handsWon || 0} wins)
@@ -1610,11 +1610,11 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                     
                     // Share result functionality
                     const resultText = `🏆 ${winnerPlayer.name} won the poker game!\n\n` +
-                      `Total Chips: $${winnerPlayer.chips.toLocaleString()}\n` +
+                      `Total Chips: $${winnerPlayer.chips.toLocaleString('en-US')}\n` +
                       `Hands Won: ${winnerStats?.handsWon || 0}/${winnerStats?.handsPlayed || 0}\n\n` +
                       otherPlayers.map(p => {
                         const pStats = rankings.find(r => r.modelName === p.name);
-                        return `${p.name}: $${p.chips.toLocaleString()} (${pStats?.handsWon || 0} wins)`;
+                        return `${p.name}: $${p.chips.toLocaleString('en-US')} (${pStats?.handsWon || 0} wins)`;
                       }).join('\n');
                     
                     if (navigator.share) {

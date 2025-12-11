@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import Paywall from '@/components/Paywall';
 
 interface Lobby {
   game_id: string;
@@ -32,6 +33,11 @@ export default function Home() {
   const [lobbies, setLobbies] = useState<Lobby[]>([]);
   const [isLoadingLobbies, setIsLoadingLobbies] = useState(true);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  
+  // Payment configuration
+  const SERVER_CREATION_FEE = 1; // $1 USD
+  const CHIPS_PER_DOLLAR = 1000; // 1$ = 1000 chips
 
   // Fetch lobbies on mount and set up Socket.io for real-time updates
   useEffect(() => {
@@ -81,18 +87,25 @@ export default function Home() {
     };
   }, []);
 
-  const handleCreateGame = async () => {
-    // Disable button and show loading
+  const handleCreateGame = () => {
+    // Show paywall first
+    setShowPaywall(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Close paywall
+    setShowPaywall(false);
     setIsCreatingGame(true);
     
     try {
       // Generate a unique game ID
       const gameId = `game-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
-      // Prepare game config
+      // Prepare game config with chips from payment
+      const chipsFromPayment = SERVER_CREATION_FEE * CHIPS_PER_DOLLAR;
       const config = {
         modelNames: selectedModels,
-        startingChips,
+        startingChips: chipsFromPayment, // Use chips from payment
         smallBlind,
         bigBlind,
         maxHands,
@@ -230,6 +243,25 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Payment Info */}
+            <div className="pt-2 pb-2">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-blue-900">Server Creation Fee:</span>
+                  <span className="text-lg font-bold text-blue-600">${SERVER_CREATION_FEE}</span>
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm font-medium text-blue-900">You'll Receive:</span>
+                  <span className="text-lg font-bold text-green-600">{(SERVER_CREATION_FEE * CHIPS_PER_DOLLAR).toLocaleString('en-US')} Chips</span>
+                </div>
+                <div className="mt-2 pt-2 border-t border-blue-300 text-center">
+                  <Badge className="bg-blue-500 text-white text-xs">
+                    Rate: 1$ = {CHIPS_PER_DOLLAR} Chips
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
             {/* Create Button */}
             <div className="pt-4">
               <Button
@@ -246,7 +278,7 @@ export default function Home() {
                     Creating Game...
                   </span>
                 ) : (
-                  'Create Game'
+                  'Create Server'
                 )}
               </Button>
               {selectedModels.length < 2 && !isCreatingGame && (
@@ -353,6 +385,18 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Paywall Modal */}
+      <Paywall
+        isOpen={showPaywall}
+        onClose={() => {
+          setShowPaywall(false);
+          setIsCreatingGame(false);
+        }}
+        onPaymentSuccess={handlePaymentSuccess}
+        amount={SERVER_CREATION_FEE}
+        chips={SERVER_CREATION_FEE * CHIPS_PER_DOLLAR}
+      />
     </main>
   );
 }

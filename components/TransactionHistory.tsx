@@ -50,7 +50,7 @@ export default function TransactionHistory({ stats, gameState, previousStats }: 
               type: 'win',
               amount: chipChange,
               handNumber: gameState?.round,
-              description: `Won $${chipChange.toLocaleString()} in hand #${gameState?.round || 'N/A'}`,
+              description: `Won $${chipChange.toLocaleString('en-US')} in hand #${gameState?.round || 'N/A'}`,
             });
           } else if (chipChange < 0) {
             // Loss transaction
@@ -62,7 +62,7 @@ export default function TransactionHistory({ stats, gameState, previousStats }: 
               type: 'loss',
               amount: Math.abs(chipChange),
               handNumber: gameState?.round,
-              description: `Lost $${Math.abs(chipChange).toLocaleString()} in hand #${gameState?.round || 'N/A'}`,
+              description: `Lost $${Math.abs(chipChange).toLocaleString('en-US')} in hand #${gameState?.round || 'N/A'}`,
             });
           }
         }
@@ -139,7 +139,7 @@ export default function TransactionHistory({ stats, gameState, previousStats }: 
                   transaction.type === 'bet' && 'text-yellow-600',
                   transaction.type === 'fold' && 'text-gray-600'
                 )}>
-                  {transaction.type === 'win' ? '+' : '-'}${transaction.amount.toLocaleString()}
+                  {transaction.type === 'win' ? '+' : '-'}${transaction.amount.toLocaleString('en-US')}
                 </div>
               </div>
               <div className="text-xs text-gray-400 mt-2">
