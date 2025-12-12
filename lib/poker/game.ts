@@ -337,7 +337,7 @@ export class PokerGame {
     }
   }
 
-  private distributePot(): void {
+  public distributePot(): void {
     const activePlayers = this.getActivePlayers();
     if (activePlayers.length === 0) {
       // No active players - still increment round and move dealer button

@@ -40,7 +40,7 @@ export default function Home() {
   // Payment configuration
   const CHIPS_PER_DOLLAR = 1000; // 1$ = 1000 chips
 
-  // Fetch lobbies on mount and set up Socket.io for real-time updates
+  // Fetch lobbies on mount and set up Supabase Realtime for real-time updates
   useEffect(() => {
     const fetchLobbies = async () => {
       try {

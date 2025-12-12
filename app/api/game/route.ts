@@ -72,9 +72,17 @@ export async function POST(request: NextRequest) {
                  updated_at = NOW()`,
               [gameId, JSON.stringify(config), 'running']
             );
-            // Emit lobby update for real-time home page updates
-            if (global.io) {
-              global.io.emit('lobby-update');
+            // Broadcast lobby update via Supabase Realtime
+            try {
+              const { supabase } = await import('@/lib/supabase/server');
+              const channel = supabase.channel('lobby-updates');
+              await channel.send({
+                type: 'broadcast',
+                event: 'lobby-update',
+                payload: {},
+              });
+            } catch (error) {
+              console.error('Error broadcasting lobby update:', error);
             }
           } catch (error) {
             console.error('Error saving lobby (non-fatal):', error);
@@ -95,7 +103,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true });
 
       case 'stop':
-        manager.isRunning = false;
+        manager.stopGame();
         if (manager.getGameId()) {
           manager.saveGameStateToDB().catch(console.error);
         }

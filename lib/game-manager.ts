@@ -1402,6 +1402,11 @@ export class GameManager {
     return this.isRunning;
   }
 
+  stopGame(): void {
+    this.isRunning = false;
+    console.log('[GameManager] Game stopped via stopGame()');
+  }
+
   getGameId(): string | null {
     return this.gameId;
   }

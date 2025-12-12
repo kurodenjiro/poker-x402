@@ -196,7 +196,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
       console.log('[Paywall] Getting latest blockhash...');
       setStatusMessage('Connecting to Solana network...');
       
-      let blockhash: string;
+      let blockhash: string | undefined;
       let lastValidBlockHeight: number | undefined;
       let blockhashRetries = 3;
       let blockhashError: any = null;
@@ -239,6 +239,11 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
             throw new Error(`Failed to get blockhash after retries: ${blockhashError?.message || 'Unknown error'}`);
           }
         }
+      }
+
+      // Ensure blockhash was assigned
+      if (!blockhash) {
+        throw new Error('Failed to get blockhash after all retries');
       }
 
       // Validate wallet address
