@@ -65,16 +65,15 @@ export class GameManager {
     );
 
     // Register agent wallets for x402 payments
-    // In production, these would come from secure storage or wallet generation
+    // Use existing wallets that were funded during payment distribution
     const paymentService = getPaymentService();
-    config.modelNames.forEach((modelName, index) => {
-      // Generate or retrieve wallet address for each agent
-      // For now, using a placeholder - in production, generate actual wallets
-      const agentWallet = process.env[`AGENT_WALLET_${modelName.toUpperCase().replace(/\s+/g, '_')}`] || 
-                         `agent_${modelName.toLowerCase().replace(/\s+/g, '_')}_${index}`;
-      paymentService.registerAgentWallet(modelName, agentWallet);
-      console.log(`[X402 Payment] Registered wallet for ${modelName}: ${agentWallet}`);
-    });
+    
+    console.log(`[X402 Payment] Registering agent wallets (using existing funded wallets)...`);
+    for (const modelName of config.modelNames) {
+      // Don't generate new wallets - use existing ones from fund distribution
+      const walletAddress = await paymentService.registerAgentWallet(modelName);
+      console.log(`[X402 Payment] Using wallet for ${modelName}: ${walletAddress}`);
+    }
 
     this.isRunning = true;
     
@@ -88,6 +87,20 @@ export class GameManager {
 
   private async playHand(): Promise<void> {
     if (!this.game || !this.config) return;
+
+    // Capture chip balances at the START of the hand (before any actions)
+    // This will be used later to calculate chip changes after pot distribution
+    const stateAtHandStart = this.game.getState();
+    const chipsAtHandStart = new Map<string, number>();
+    stateAtHandStart.players.forEach(p => {
+      chipsAtHandStart.set(p.id, p.chips);
+    });
+    // Store in a way that evaluateHand can access it
+    (this as any).chipsAtHandStart = chipsAtHandStart;
+    console.log('🟣 [playHand] Captured chips at hand start:', Array.from(chipsAtHandStart.entries()).map(([id, chips]) => {
+      const player = stateAtHandStart.players.find(p => p.id === id);
+      return `${player?.name || id}: ${chips}`;
+    }));
 
     // Check maxHands BEFORE starting a new hand
     if (this.config?.maxHands && this.handsPlayed >= this.config.maxHands) {
@@ -647,11 +660,21 @@ export class GameManager {
   }
 
   private async evaluateHand(): Promise<void> {
-    if (!this.game || !this.config) return;
+    console.log('🔴🔴🔴 [evaluateHand] ========== EVALUATE HAND CALLED ==========');
+    console.log('🔴 [evaluateHand] Game exists:', !!this.game);
+    console.log('🔴 [evaluateHand] Config exists:', !!this.config);
+    
+    if (!this.game || !this.config) {
+      console.log('🔴 [evaluateHand] ❌ EARLY RETURN - No game or config');
+      return;
+    }
 
     const state = this.game.getState();
     this.handsPlayed++;
-    console.log(`[evaluateHand] Hands played incremented to: ${this.handsPlayed} (maxHands: ${this.config.maxHands})`);
+    console.log(`🔴 [evaluateHand] Hands played incremented to: ${this.handsPlayed} (maxHands: ${this.config.maxHands})`);
+    console.log(`🔴 [evaluateHand] Current phase: ${state.phase}`);
+    console.log(`🔴 [evaluateHand] Pot: ${state.pot}`);
+    console.log(`🔴 [evaluateHand] Players:`, state.players.map(p => `${p.name}: ${p.chips} chips, active: ${p.isActive}, bet: ${p.totalBetThisRound || 0}`));
 
     // Check if game should end (only one player with chips total, regardless of active status)
     const allPlayersWithChips = state.players.filter(p => p.chips > 0);
@@ -678,6 +701,40 @@ export class GameManager {
           .forEach(loser => {
             this.evaluator.recordHandResult(loser.id, false, loser.chips);
           });
+        
+        // Process x402 payments even when game ends (final hand)
+        try {
+          const paymentService = getPaymentService();
+          const potBeforeDistribution = state.pot;
+          
+          // Build winner/loser lists for final hand
+          const winnerList = [{
+            agentName: winner.name,
+            chipsWon: potBeforeDistribution
+          }];
+          
+          const loserList = state.players
+            .filter(p => p.id !== winner.id && p.totalBetThisRound > 0)
+            .map(p => ({
+              agentName: p.name,
+              chipsLost: p.totalBetThisRound || 0
+            }));
+          
+          if (winnerList.length > 0 && loserList.length > 0 && potBeforeDistribution > 0) {
+            console.log('[X402 Payment] 💰 Processing final hand payments:', {
+              winners: winnerList,
+              losers: loserList,
+              pot: potBeforeDistribution,
+              gameId: this.gameId,
+              handNumber: this.handsPlayed
+            });
+            
+            const payments = await paymentService.distributePot(winnerList, loserList, this.gameId || undefined, this.handsPlayed);
+            console.log('[X402 Payment] ✅ Final hand payments processed:', payments.length, 'payments');
+          }
+        } catch (error) {
+          console.error('[X402 Payment] ❌ Error processing final hand payments:', error);
+        }
       }
       
       // Game ends immediately - one player has all chips
@@ -688,7 +745,42 @@ export class GameManager {
     // Determine winners and record stats for active players in this hand
     const activePlayers = state.players.filter(p => p.isActive && p.chips > 0);
     
+    console.log(`🔴 [evaluateHand] Phase: ${state.phase}, Active players: ${activePlayers.length}`);
+    console.log(`🔴 [evaluateHand] State pot: ${state.pot}`);
+    console.log(`🔴 [evaluateHand] About to check phase...`);
+    
+    // ALWAYS process payments after hand finishes, regardless of phase
+    // IMPORTANT: Use chips captured at HAND START (before any actions/pot distribution)
+    // The pot may have already been distributed during playRound(), so we need chips from hand start
+    console.log('🔴 [evaluateHand] ========== USING CHIPS FROM HAND START ==========');
+    
+    // Get chips captured at hand start (stored in playHand())
+    let chipsBeforeDistribution = (this as any).chipsAtHandStart as Map<string, number> | undefined;
+    
+    if (!chipsBeforeDistribution) {
+      // Fallback: capture chips now (pot might already be distributed, so this won't work well)
+      console.log('🔴 [evaluateHand] ⚠️  No chips at hand start found! Pot may have been distributed already.');
+      chipsBeforeDistribution = new Map<string, number>();
+      state.players.forEach(p => {
+        chipsBeforeDistribution!.set(p.id, p.chips);
+      });
+      console.log('🔴 [evaluateHand] ⚠️  Using current chips (may not show changes if pot already distributed)');
+    } else {
+      console.log('🔴 [evaluateHand] ✅ Using chips captured at HAND START (before any actions)');
+    }
+    
+    console.log('🔴 [evaluateHand] Chips at HAND START:', Array.from(chipsBeforeDistribution.entries()).map(([id, chips]) => {
+      const player = state.players.find(p => p.id === id);
+      return `${player?.name || id}: ${chips} chips`;
+    }));
+    
+    // Store pot before any distribution
+    const potBeforeDistribution = state.pot;
+    let winners: Array<{ player: any; evaluation: any }> = [];
+    let evaluations: Array<{ player: any; evaluation: any }> = [];
+    
     if (state.phase === 'showdown') {
+      console.log(`🔴 [evaluateHand] Phase is 'showdown' - processing showdown`);
       // If only one active player, they win automatically (pot already distributed)
       if (activePlayers.length === 1) {
         const winner = activePlayers[0];
@@ -710,6 +802,61 @@ export class GameManager {
           .forEach(loser => {
             this.evaluator.recordHandResult(loser.id, false, loser.chips);
           });
+        
+        // Process x402 payments even when only one player remains (others folded)
+        try {
+          const paymentService = getPaymentService();
+          const potBeforeDistribution = state.pot;
+          
+          // Ensure wallets are registered
+          for (const player of state.players) {
+            await paymentService.registerAgentWallet(player.name);
+          }
+          
+          const winnerList = [{
+            agentName: winner.name,
+            chipsWon: potBeforeDistribution
+          }];
+          
+          const loserList = state.players
+            .filter(p => p.id !== winner.id && p.totalBetThisRound > 0)
+            .map(p => ({
+              agentName: p.name,
+              chipsLost: p.totalBetThisRound || 0
+            }));
+          
+          if (winnerList.length > 0 && loserList.length > 0 && potBeforeDistribution > 0) {
+            console.log('[X402 Payment] 💰 Processing payments (single winner):', {
+              winners: winnerList,
+              losers: loserList,
+              pot: potBeforeDistribution,
+              gameId: this.gameId,
+              handNumber: this.handsPlayed
+            });
+            
+            const payments = await paymentService.distributePot(winnerList, loserList, this.gameId || undefined, this.handsPlayed);
+            console.log('[X402 Payment] ✅ Payments processed:', payments.length, 'payments');
+            
+            // Add payment messages to chat
+            payments.forEach(payment => {
+              if (payment.status === 'completed' && payment.amount > 0) {
+                const paymentMessage: ChatMessage = {
+                  modelName: 'System',
+                  timestamp: Date.now(),
+                  phase: 'finished',
+                  action: 'payment',
+                  decision: `💰 ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips (${payment.amountSol?.toFixed(6) || '0'} SOL) (x402)`,
+                  emoji: '💰',
+                  role: 'system',
+                };
+                chatHistory.addMessage(paymentMessage);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('[X402 Payment] ❌ Error processing payments (single winner):', error);
+        }
+        
         return;
       }
       
@@ -733,12 +880,69 @@ export class GameManager {
       if (evaluations.length === 0) {
         console.log('[evaluateHand] No valid hands to evaluate (all players folded before flop)');
         // Pot was already distributed to the last remaining player
+        // Still attempt x402 payment processing
+        try {
+          const paymentService = getPaymentService();
+          const potBeforeDistribution = state.pot;
+          const lastPlayer = activePlayers[0]; // The one who didn't fold
+          
+          if (lastPlayer && potBeforeDistribution > 0) {
+            // Ensure wallets are registered
+            for (const player of state.players) {
+              await paymentService.registerAgentWallet(player.name);
+            }
+            
+            const winnerList = [{
+              agentName: lastPlayer.name,
+              chipsWon: potBeforeDistribution
+            }];
+            
+            const loserList = state.players
+              .filter(p => p.id !== lastPlayer.id && p.totalBetThisRound > 0)
+              .map(p => ({
+                agentName: p.name,
+                chipsLost: p.totalBetThisRound || 0
+              }));
+            
+            if (winnerList.length > 0 && loserList.length > 0 && potBeforeDistribution > 0) {
+              console.log('[X402 Payment] 💰 Processing payments (all folded):', {
+                winners: winnerList,
+                losers: loserList,
+                pot: potBeforeDistribution,
+                gameId: this.gameId,
+                handNumber: this.handsPlayed
+              });
+              
+              const payments = await paymentService.distributePot(winnerList, loserList, this.gameId || undefined, this.handsPlayed);
+              console.log('[X402 Payment] ✅ Payments processed (all folded):', payments.length, 'payments');
+              
+              // Add payment messages to chat
+              payments.forEach(payment => {
+                if (payment.status === 'completed' && payment.amount > 0) {
+                  const paymentMessage: ChatMessage = {
+                    modelName: 'System',
+                    timestamp: Date.now(),
+                    phase: 'finished',
+                    action: 'payment',
+                    decision: `💰 ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips (${payment.amountSol?.toFixed(6) || '0'} SOL) (x402)`,
+                    emoji: '💰',
+                    role: 'system',
+                  };
+                  chatHistory.addMessage(paymentMessage);
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error('[X402 Payment] ❌ Error processing payments (all folded):', error);
+        }
         return;
       }
 
       evaluations.sort((a, b) => b.evaluation.value - a.evaluation.value);
       const winningValue = evaluations[0].evaluation.value;
-      const winners = evaluations.filter(e => e.evaluation.value === winningValue);
+      winners = evaluations.filter(e => e.evaluation.value === winningValue);
+      console.log(`🔴 [evaluateHand] Winners determined:`, winners.map(w => w.player.name));
 
       // Get pot amount before distribution for payment calculation
       const potBeforeDistribution = state.pot;
@@ -747,49 +951,136 @@ export class GameManager {
       // Distribute pot first
       this.game.distributePot();
 
-      // Process x402 agent-to-agent payments
+      // ALWAYS process x402 agent-to-agent payments after each hand finishes
+      console.log('🔵 [X402 Payment] ========== STARTING PAYMENT PROCESS ==========');
+      console.log('🔵 [X402 Payment] Hand finished, attempting payment processing...');
+      console.log('🔵 [X402 Payment] Game ID:', this.gameId);
+      console.log('🔵 [X402 Payment] Hand Number:', this.handsPlayed);
+      console.log('🔵 [X402 Payment] Pot before distribution:', potBeforeDistribution);
+      console.log('🔵 [X402 Payment] Active players:', activePlayers.map(p => ({ name: p.name, chips: p.chips, totalBet: p.totalBetThisRound })));
+      console.log('🔵 [X402 Payment] Winners:', winners.map(w => w.player.name));
+      
       try {
+        console.log('🔵 [X402 Payment] Getting payment service...');
         const paymentService = getPaymentService();
+        console.log('🔵 [X402 Payment] Payment service obtained:', !!paymentService);
+        
+        // Ensure all players have wallets registered
+        console.log('🔵 [X402 Payment] Registering wallets for', activePlayers.length, 'players...');
+        for (const player of activePlayers) {
+          console.log(`🔵 [X402 Payment] Registering wallet for ${player.name}...`);
+          const wallet = await paymentService.registerAgentWallet(player.name);
+          console.log(`🔵 [X402 Payment] Wallet registered for ${player.name}: ${wallet}`);
+        }
+        console.log('🔵 [X402 Payment] All wallets registered');
+        
+        // Build winner list - players who won chips
         const winnerList = winners.map(({ player }) => ({
           agentName: player.name,
           chipsWon: Math.floor(potBeforeDistribution / winners.length)
         }));
+        console.log('🔵 [X402 Payment] Winner list:', winnerList);
         
+        // Build loser list - players who lost chips (bet but didn't win)
         const loserList = activePlayers
           .filter(p => !winners.some(w => w.player.id === p.id))
           .map(p => ({
             agentName: p.name,
             chipsLost: p.totalBetThisRound || 0
           }));
+        console.log('🔵 [X402 Payment] Loser list:', loserList);
 
+        // ALWAYS attempt payment processing when hand finishes
+        console.log('🔵 [X402 Payment] Checking payment conditions...');
+        console.log('🔵 [X402 Payment] Winners count:', winnerList.length);
+        console.log('🔵 [X402 Payment] Losers count:', loserList.length);
+        console.log('🔵 [X402 Payment] Pot amount:', potBeforeDistribution);
+        
+        // Process payments if we have valid winners and losers with a pot
         if (winnerList.length > 0 && loserList.length > 0 && potBeforeDistribution > 0) {
-          console.log('[X402 Payment] 💰 Processing agent-to-agent payments:', { 
-            winners: winnerList, 
-            losers: loserList,
-            pot: potBeforeDistribution 
-          });
+          console.log('🔵 [X402 Payment] ✅ Conditions met! Calling distributePot...');
+          console.log('🔵 [X402 Payment] Winner list:', JSON.stringify(winnerList, null, 2));
+          console.log('🔵 [X402 Payment] Loser list:', JSON.stringify(loserList, null, 2));
           
-          const payments = await paymentService.distributePot(winnerList, loserList);
-          console.log('[X402 Payment] ✅ Payments processed:', payments);
+          const payments = await paymentService.distributePot(winnerList, loserList, this.gameId || undefined, this.handsPlayed);
+          console.log('🔵 [X402 Payment] ✅ distributePot returned:', payments.length, 'payments');
+          console.log('🔵 [X402 Payment] Payment details:', JSON.stringify(payments, null, 2));
           
           // Add payment messages to chat
-          payments.forEach(payment => {
+          payments.forEach((payment, index) => {
+            console.log(`🔵 [X402 Payment] Processing payment ${index + 1}/${payments.length}:`, payment);
             if (payment.status === 'completed' && payment.amount > 0) {
+              console.log(`🔵 [X402 Payment] ✅ Payment ${index + 1} completed successfully`);
               const paymentMessage: ChatMessage = {
                 modelName: 'System',
                 timestamp: Date.now(),
                 phase: 'finished',
                 action: 'payment',
-                decision: `💰 ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips (x402)`,
+                decision: `💰 ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips (${payment.amountSol?.toFixed(6) || '0'} SOL) (x402)`,
                 emoji: '💰',
                 role: 'system',
               };
               chatHistory.addMessage(paymentMessage);
+            } else if (payment.status === 'failed') {
+              console.error(`🔵 [X402 Payment] ❌ Payment ${index + 1} failed:`, payment);
+              const failedPaymentMessage: ChatMessage = {
+                modelName: 'System',
+                timestamp: Date.now(),
+                phase: 'finished',
+                action: 'payment',
+                decision: `❌ Payment failed: ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips`,
+                emoji: '❌',
+                role: 'system',
+              };
+              chatHistory.addMessage(failedPaymentMessage);
+            } else {
+              console.log(`🔵 [X402 Payment] ⚠️  Payment ${index + 1} status:`, payment.status);
             }
           });
+          
+          console.log('🔵 [X402 Payment] ========== PAYMENT PROCESS COMPLETE ==========');
+        } else {
+          // Log why payments were skipped
+          const skipReason = !winnerList.length ? 'no winners' : 
+                           !loserList.length ? 'no losers' : 
+                           potBeforeDistribution === 0 ? 'pot is zero' : 'unknown';
+          
+          console.log(`🔵 [X402 Payment] ⏭️  SKIPPING PAYMENTS: ${skipReason}`, {
+            hasWinners: winnerList.length > 0,
+            hasLosers: loserList.length > 0,
+            pot: potBeforeDistribution,
+            handNumber: this.handsPlayed
+          });
+          
+          const skipMessage: ChatMessage = {
+            modelName: 'System',
+            timestamp: Date.now(),
+            phase: 'finished',
+            action: 'payment',
+            decision: `⏭️  No x402 payment: ${skipReason} (Hand #${this.handsPlayed})`,
+            emoji: '⏭️',
+            role: 'system',
+          };
+          chatHistory.addMessage(skipMessage);
+          console.log('🔵 [X402 Payment] ========== PAYMENT PROCESS SKIPPED ==========');
         }
       } catch (error) {
+        console.error('🔵 [X402 Payment] ❌❌❌ ERROR IN PAYMENT PROCESS ❌❌❌');
+        console.error('🔵 [X402 Payment] Error details:', error);
+        console.error('🔵 [X402 Payment] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
         console.error('[X402 Payment] ❌ Error processing agent payments:', error);
+        
+        const errorMessage: ChatMessage = {
+          modelName: 'System',
+          timestamp: Date.now(),
+          phase: 'finished',
+          action: 'payment',
+          decision: `❌ Payment processing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          emoji: '❌',
+          role: 'system',
+        };
+        chatHistory.addMessage(errorMessage);
+        console.log('🔵 [X402 Payment] ========== PAYMENT PROCESS ERROR ==========');
       }
 
       // Record winners
@@ -822,9 +1113,224 @@ export class GameManager {
         console.log(`[evaluateHand] Game ending: Only ${playersWithChipsAfterPot.length} player(s) with chips after pot distribution`);
         // A player has won all chips - game ends immediately
         this.isRunning = false;
-        return;
+        // Don't return yet - process payments first!
+      }
+    } else {
+      // Phase is NOT 'showdown' - but hand still finished
+      console.log(`🔴 [evaluateHand] Phase is ${state.phase}, not 'showdown'`);
+      // Distribute pot if not already done
+      if (state.pot > 0) {
+        this.game.distributePot();
       }
     }
+    
+    // ========== ALWAYS PROCESS PAYMENTS AT THE END (AFTER POT DISTRIBUTION) ==========
+    // Calculate payments based on actual chip changes (winnings/losses)
+    console.log('🔵 [X402 Payment] ========== STARTING PAYMENT PROCESS (AFTER POT DISTRIBUTION) ==========');
+    console.log('🔵 [X402 Payment] Hand finished, calculating payments based on chip changes...');
+    console.log('🔵 [X402 Payment] Game ID:', this.gameId);
+    console.log('🔵 [X402 Payment] Hand Number:', this.handsPlayed);
+    
+    try {
+      const paymentService = getPaymentService();
+      console.log('🔵 [X402 Payment] Payment service obtained:', !!paymentService);
+      
+      // Ensure all players have wallets registered
+      console.log('🔵 [X402 Payment] Registering wallets for', state.players.length, 'players...');
+      for (const player of state.players) {
+        await paymentService.registerAgentWallet(player.name);
+      }
+      console.log('🔵 [X402 Payment] All wallets registered');
+      
+      // Get state AFTER pot distribution to calculate actual chip changes
+      const stateAfterDistribution = this.game.getState();
+      
+      console.log('🔵 [X402 Payment] ========== CALCULATING CHIP CHANGES ==========');
+      console.log('🔵 [X402 Payment] Chips BEFORE distribution:', Array.from(chipsBeforeDistribution.entries()).map(([id, chips]) => {
+        const player = state.players.find(p => p.id === id);
+        return `${player?.name || id}: ${chips}`;
+      }));
+      console.log('🔵 [X402 Payment] Chips AFTER distribution:', stateAfterDistribution.players.map(p => `${p.name}: ${p.chips}`));
+      
+      // Calculate ACTUAL chip changes: compare before and after
+      const chipChanges = new Map<string, number>(); // positive = gained, negative = lost
+      stateAfterDistribution.players.forEach(player => {
+        const chipsBefore = chipsBeforeDistribution.get(player.id) || 0;
+        const chipsAfter = player.chips;
+        const change = chipsAfter - chipsBefore;
+        chipChanges.set(player.id, change);
+        const changeStr = change > 0 ? `+${change}` : change < 0 ? `${change}` : '0';
+        console.log(`🔵 [X402 Payment] ${player.name}: ${chipsBefore} → ${chipsAfter} (${changeStr})`);
+      });
+      
+      // Build winner and loser lists based on ACTUAL chip changes
+      // Winners = players who GAINED chips (positive change)
+      // Losers = players who LOST chips (negative change)
+      
+      const winnerList: Array<{ agentName: string; chipsWon: number }> = [];
+      const loserList: Array<{ agentName: string; chipsLost: number }> = [];
+      
+      console.log('🔵 [X402 Payment] ========== BUILDING WINNER/LOSER LISTS ==========');
+      chipChanges.forEach((change, playerId) => {
+        const player = stateAfterDistribution.players.find(p => p.id === playerId);
+        if (!player) {
+          console.log(`🔵 [X402 Payment] ⚠️  Player ${playerId} not found in stateAfterDistribution`);
+          return;
+        }
+        
+        if (change > 0) {
+          // Player gained chips = winner
+          console.log(`🔵 [X402 Payment] ✅ ${player.name} is a WINNER (gained ${change} chips)`);
+          winnerList.push({
+            agentName: player.name,
+            chipsWon: change
+          });
+        } else if (change < 0) {
+          // Player lost chips = loser
+          console.log(`🔵 [X402 Payment] ❌ ${player.name} is a LOSER (lost ${Math.abs(change)} chips)`);
+          loserList.push({
+            agentName: player.name,
+            chipsLost: Math.abs(change) // Make positive
+          });
+        } else {
+          console.log(`🔵 [X402 Payment] ⏸️  ${player.name} has NO CHANGE (0 chips)`);
+        }
+      });
+      
+      console.log('🔵 [X402 Payment] ========== WINNER/LOSER LISTS BUILT ==========');
+      console.log('🔵 [X402 Payment] Winners found:', winnerList.length);
+      console.log('🔵 [X402 Payment] Losers found:', loserList.length);
+      
+      console.log('🔵 [X402 Payment] Winner list (based on chip gains):', JSON.stringify(winnerList, null, 2));
+      console.log('🔵 [X402 Payment] Loser list (based on chip losses):', JSON.stringify(loserList, null, 2));
+      
+      // Calculate total chips gained and lost
+      const totalChipsGained = winnerList.reduce((sum, w) => sum + w.chipsWon, 0);
+      const totalChipsLost = loserList.reduce((sum, l) => sum + l.chipsLost, 0);
+      
+      console.log('🔵 [X402 Payment] Total chips gained:', totalChipsGained);
+      console.log('🔵 [X402 Payment] Total chips lost:', totalChipsLost);
+      console.log('🔵 [X402 Payment] Pot before distribution (for reference):', potBeforeDistribution);
+      
+      // Process payments if there are chip changes (winners and losers)
+      // Condition: At least one player gained chips AND at least one player lost chips
+      // We don't need pot > 0 - we use actual chip changes!
+      if (winnerList.length > 0 && loserList.length > 0 && totalChipsGained > 0 && totalChipsLost > 0) {
+        console.log('🔵 [X402 Payment] ✅✅✅ PAYMENT CONDITIONS MET (BASED ON CHIP CHANGES) ✅✅✅');
+        console.log('🔵 [X402 Payment] Winners (gained chips):', winnerList.map(w => `${w.agentName} (+${w.chipsWon} chips)`).join(', '));
+        console.log('🔵 [X402 Payment] Losers (lost chips):', loserList.map(l => `${l.agentName} (-${l.chipsLost} chips)`).join(', '));
+        console.log('🔵 [X402 Payment] Total chips gained:', totalChipsGained);
+        console.log('🔵 [X402 Payment] Total chips lost:', totalChipsLost);
+        console.log('🔵 [X402 Payment] Calling distributePot NOW...');
+        
+        try {
+          const payments = await paymentService.distributePot(winnerList, loserList, this.gameId || undefined, this.handsPlayed);
+          console.log('🔵 [X402 Payment] ✅✅✅ distributePot RETURNED ✅✅✅');
+          console.log('🔵 [X402 Payment] Number of payments:', payments.length);
+          console.log('🔵 [X402 Payment] Payment details:', JSON.stringify(payments, null, 2));
+          
+          if (payments.length === 0) {
+            console.error('🔵 [X402 Payment] ⚠️⚠️⚠️ WARNING: distributePot returned 0 payments! ⚠️⚠️⚠️');
+          }
+          
+          // Add payment messages to chat
+          let completedCount = 0;
+          let failedCount = 0;
+          
+          payments.forEach((payment, index) => {
+            console.log(`🔵 [X402 Payment] Payment ${index + 1}/${payments.length}:`, {
+              from: payment.fromAgent,
+              to: payment.toAgent,
+              amount: payment.amount,
+              status: payment.status,
+              signature: payment.transactionSignature?.substring(0, 16) + '...' || 'none'
+            });
+            
+            if (payment.status === 'completed' && payment.amount > 0) {
+              completedCount++;
+              console.log(`🔵 [X402 Payment] ✅ Payment ${index + 1} COMPLETED`);
+              const paymentMessage: ChatMessage = {
+                modelName: 'System',
+                timestamp: Date.now(),
+                phase: 'finished',
+                action: 'payment',
+                decision: `💰 ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips (${payment.amountSol?.toFixed(6) || '0'} SOL) (x402)`,
+                emoji: '💰',
+                role: 'system',
+              };
+              chatHistory.addMessage(paymentMessage);
+            } else if (payment.status === 'failed') {
+              failedCount++;
+              console.error(`🔵 [X402 Payment] ❌ Payment ${index + 1} FAILED`);
+              const failedMessage: ChatMessage = {
+                modelName: 'System',
+                timestamp: Date.now(),
+                phase: 'finished',
+                action: 'payment',
+                decision: `❌ Payment failed: ${payment.fromAgent} → ${payment.toAgent}: ${payment.amount} chips`,
+                emoji: '❌',
+                role: 'system',
+              };
+              chatHistory.addMessage(failedMessage);
+            } else {
+              console.log(`🔵 [X402 Payment] ⚠️  Payment ${index + 1} status: ${payment.status}`);
+            }
+          });
+          
+          console.log(`🔵 [X402 Payment] Summary: ${completedCount} completed, ${failedCount} failed, ${payments.length - completedCount - failedCount} other`);
+        } catch (error) {
+          console.error('🔵 [X402 Payment] ❌❌❌ ERROR calling distributePot ❌❌❌');
+          console.error('🔵 [X402 Payment] Error:', error);
+          console.error('🔵 [X402 Payment] Stack:', error instanceof Error ? error.stack : 'No stack');
+        }
+      } else {
+        console.log('🔵 [X402 Payment] ⏭️⏭️⏭️ CONDITIONS NOT MET - SKIPPING PAYMENTS ⏭️⏭️⏭️');
+        console.log('🔵 [X402 Payment] ========== DIAGNOSTIC INFO ==========');
+        
+        // Detailed diagnostic
+        const reason = 
+          winnerList.length === 0 ? 'No players gained chips' :
+          loserList.length === 0 ? 'No players lost chips' :
+          totalChipsGained === 0 ? 'Total chips gained is 0' :
+          totalChipsLost === 0 ? 'Total chips lost is 0' :
+          'Unknown reason';
+        
+        console.log('🔵 [X402 Payment] ❌ Reason:', reason);
+        console.log('🔵 [X402 Payment] Winners count:', winnerList.length);
+        console.log('🔵 [X402 Payment] Losers count:', loserList.length);
+        console.log('🔵 [X402 Payment] Total chips gained:', totalChipsGained);
+        console.log('🔵 [X402 Payment] Total chips lost:', totalChipsLost);
+        console.log('🔵 [X402 Payment] Pot before distribution:', potBeforeDistribution);
+        
+        // Show all chip changes
+        console.log('🔵 [X402 Payment] All chip changes:');
+        chipChanges.forEach((change, playerId) => {
+          const player = stateAfterDistribution.players.find(p => p.id === playerId);
+          const chipsBefore = chipsBeforeDistribution.get(playerId) || 0;
+          const chipsAfter = player?.chips || 0;
+          console.log(`🔵 [X402 Payment]   ${player?.name || playerId}: ${chipsBefore} → ${chipsAfter} (change: ${change > 0 ? '+' : ''}${change})`);
+        });
+        
+        // Show winner/loser lists
+        if (winnerList.length > 0) {
+          console.log('🔵 [X402 Payment] Winners list:', JSON.stringify(winnerList, null, 2));
+        } else {
+          console.log('🔵 [X402 Payment] ❌ NO WINNERS - All players either lost chips or had no change');
+        }
+        
+        if (loserList.length > 0) {
+          console.log('🔵 [X402 Payment] Losers list:', JSON.stringify(loserList, null, 2));
+        } else {
+          console.log('🔵 [X402 Payment] ❌ NO LOSERS - All players either gained chips or had no change');
+        }
+        
+        console.log('🔵 [X402 Payment] ========== END DIAGNOSTIC ==========');
+      }
+    } catch (error) {
+      console.error('🔵 [X402 Payment] ❌❌❌ ERROR IN PAYMENT PROCESS ❌❌❌');
+      console.error('🔵 [X402 Payment] Error:', error);
+    }
+    console.log('🔵 [X402 Payment] ========== PAYMENT PROCESS COMPLETE ==========');
   }
 
   getGameState(): GameState | null {

@@ -30,11 +30,8 @@ function PotDistributionAnimation({
 
   useEffect(() => {
     if (!playerCardRef || !potRef) {
-      console.log('[Pot Distribution] ❌ Missing refs:', { playerCardRef: !!playerCardRef, potRef: !!potRef, playerId, amount });
       return;
     }
-
-    console.log('[Pot Distribution] 🎬 Starting animation setup for', { playerId, amount });
 
     // Retry mechanism - try multiple times if refs aren't ready
     let attempts = 0;
@@ -65,15 +62,6 @@ function PotDistributionAnimation({
         const endX = endRect.left + endRect.width / 2;
         const endY = endRect.top + endRect.height / 2;
         
-        console.log('[Pot Distribution] ✅ Calculated positions (attempt', attempts, '):', { 
-          startX, 
-          startY, 
-          endX, 
-          endY, 
-          amount, 
-          deltaX: endX - startX, 
-          deltaY: endY - startY
-        });
         setPositions({ startX, startY, endX, endY });
       } catch (error) {
         console.error('[Pot Distribution] ❌ Error calculating positions (attempt', attempts, '):', error);
@@ -89,11 +77,8 @@ function PotDistributionAnimation({
 
   useEffect(() => {
     if (!animationRef.current || !positions) {
-      console.log('[Pot Distribution] ⏸️ Animation not ready:', { hasRef: !!animationRef.current, hasPositions: !!positions });
       return;
     }
-    
-    console.log('[Pot Distribution] 🚀 Starting animation:', { playerId, amount, positions });
     
     const element = animationRef.current;
     const deltaX = positions.endX - positions.startX;
@@ -111,7 +96,6 @@ function PotDistributionAnimation({
     const animate = (currentTime: number) => {
       if (startTime === null) {
         startTime = currentTime;
-        console.log('[Pot Distribution] ▶️ Animation started');
       }
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
@@ -129,8 +113,6 @@ function PotDistributionAnimation({
       
       if (progress < 1) {
         requestAnimationFrame(animate);
-      } else {
-        console.log('[Pot Distribution] ✅ Animation completed');
       }
     };
     
@@ -184,12 +166,9 @@ function BetFlyAnimation({
   const animationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!playerCardRef || !potRef) {
-      console.log('[Bet Animation] ❌ Missing refs:', { playerCardRef: !!playerCardRef, potRef: !!potRef, playerId, amount });
-      return;
-    }
-
-    console.log('[Bet Animation] 🎬 Starting animation setup for', { playerId, amount });
+      if (!playerCardRef || !potRef) {
+        return;
+      }
 
     // Retry mechanism - try multiple times if refs aren't ready
     let attempts = 0;
@@ -221,17 +200,6 @@ function BetFlyAnimation({
         const endX = endRect.left + endRect.width / 2;
         const endY = endRect.top + endRect.height / 2;
         
-        console.log('[Bet Animation] ✅ Calculated positions (attempt', attempts, '):', { 
-          startX, 
-          startY, 
-          endX, 
-          endY, 
-          amount, 
-          deltaX: endX - startX, 
-          deltaY: endY - startY,
-          startRect: { width: startRect.width, height: startRect.height, left: startRect.left, top: startRect.top },
-          endRect: { width: endRect.width, height: endRect.height, left: endRect.left, top: endRect.top }
-        });
         setPositions({ startX, startY, endX, endY });
       } catch (error) {
         console.error('[Bet Animation] ❌ Error calculating positions (attempt', attempts, '):', error);
@@ -254,7 +222,6 @@ function BetFlyAnimation({
       return;
     }
     
-    console.log('[Bet Animation] 🚀 Starting animation:', { playerId, amount, positions });
     
     const element = animationRef.current;
     const deltaX = positions.endX - positions.startX;
@@ -273,7 +240,6 @@ function BetFlyAnimation({
     const animate = (currentTime: number) => {
       if (startTime === null) {
         startTime = currentTime;
-        console.log('[Bet Animation] ▶️ Animation started');
       }
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
@@ -294,8 +260,6 @@ function BetFlyAnimation({
       
       if (progress < 1) {
         requestAnimationFrame(animate);
-      } else {
-        console.log('[Bet Animation] ✅ Animation completed');
       }
     };
     
@@ -423,90 +387,43 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
   const potRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    console.log(`[Animation] 🔄 useEffect triggered - stats:`, stats?.length || 0, 'gameState:', !!gameState);
-    
     if (!stats || stats.length === 0) {
-      console.log(`[Animation] ⚠️ No stats available`);
       return;
     }
-
-    console.log(`[Animation] 📊 Processing ${stats.length} stats:`, stats.map(s => ({
-      modelName: s.modelName,
-      modelId: s.modelId,
-      handsPlayed: s.handsPlayed,
-      handsWon: s.handsWon,
-      totalChips: s.totalChips
-    })));
 
     const newAnimations = new Map<string, { type: 'win' | 'loss'; profit: number }>();
     
     stats.forEach(stat => {
       const prevStat = prevStatsRef.current.get(stat.modelId);
       
-      console.log(`[Animation] 👤 Checking ${stat.modelName}:`, {
-        hasPrevStat: !!prevStat,
-        prevStat: prevStat,
-        currentStat: {
-          handsPlayed: stat.handsPlayed,
-          handsWon: stat.handsWon,
-          totalChips: stat.totalChips
-        }
-      });
-      
       if (prevStat) {
         const profitChange = stat.totalChips - prevStat.totalChips;
         const handsPlayedChanged = stat.handsPlayed > prevStat.handsPlayed;
         const handsWonChanged = stat.handsWon > prevStat.handsWon;
         
-        console.log(`[Animation] 📈 ${stat.modelName} changes:`, {
-          profitChange,
-          handsPlayedChanged: `${prevStat.handsPlayed} -> ${stat.handsPlayed}`,
-          handsWonChanged: `${prevStat.handsWon} -> ${stat.handsWon}`
-        });
-        
         // Only trigger animations when a hand has completed (handsPlayed increased)
         if (handsPlayedChanged) {
-          console.log(`[Animation] 🎯 Hand completed for ${stat.modelName}:`, {
-            handsPlayed: `${prevStat.handsPlayed} -> ${stat.handsPlayed}`,
-            handsWon: `${prevStat.handsWon} -> ${stat.handsWon}`,
-            profitChange,
-            handsWonChanged,
-            modelId: stat.modelId
-          });
-          
           // Win: handsWon increased (player won the hand)
           if (handsWonChanged) {
             const profitAmount = Math.max(profitChange, 100); // At least 100 for visibility
-            console.log(`[Animation] ✅ Setting WIN animation for ${stat.modelName}: $${profitAmount}`);
             newAnimations.set(stat.modelId, { type: 'win', profit: profitAmount });
             // Also set by player name as backup
             const player = gameState?.players?.find(p => p.name === stat.modelName);
             if (player) {
-              console.log(`[Animation] ✅ Also setting WIN animation for player.id: ${player.id}`);
               newAnimations.set(player.id, { type: 'win', profit: profitAmount });
-            } else {
-              console.log(`[Animation] ⚠️ Player not found for ${stat.modelName}`);
             }
           }
           // Loss: handsPlayed increased but handsWon didn't (player lost the hand)
           else {
             const profitAmount = Math.max(Math.abs(profitChange), 100); // At least 100 for visibility
-            console.log(`[Animation] ❌ Setting LOSS animation for ${stat.modelName}: $${profitAmount}`);
             newAnimations.set(stat.modelId, { type: 'loss', profit: profitAmount });
             // Also set by player name as backup
             const player = gameState?.players?.find(p => p.name === stat.modelName);
             if (player) {
-              console.log(`[Animation] ❌ Also setting LOSS animation for player.id: ${player.id}`);
               newAnimations.set(player.id, { type: 'loss', profit: profitAmount });
-            } else {
-              console.log(`[Animation] ⚠️ Player not found for ${stat.modelName}`);
             }
           }
-        } else {
-          console.log(`[Animation] ⏭️ ${stat.modelName}: No hand completion detected`);
         }
-      } else {
-        console.log(`[Animation] 📝 ${stat.modelName}: First time seeing this player, storing initial stats`);
       }
       
       // Update previous stats
@@ -518,14 +435,11 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     });
 
     if (newAnimations.size > 0) {
-      console.log(`[Animation] 🚀 Setting ${newAnimations.size} animation(s):`, Array.from(newAnimations.entries()));
       setWinLossAnimations(prev => {
         const updated = new Map(prev);
         newAnimations.forEach((value, key) => {
           updated.set(key, value);
-          console.log(`[Animation] ✨ Added: ${key} -> ${value.type} $${value.profit}`);
         });
-        console.log(`[Animation] 📦 Final animations map:`, Array.from(updated.entries()));
         return updated;
       });
       
@@ -536,12 +450,9 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           newAnimations.forEach((_, key) => {
             updated.delete(key);
           });
-          console.log(`[Animation] 🧹 Cleared animations`);
           return updated;
         });
       }, 5000);
-    } else {
-      console.log(`[Animation] ℹ️ No new animations to set`);
     }
   }, [stats, gameState]);
 
@@ -560,16 +471,13 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     const prevPhase = prevPhaseRef.current;
     const phaseChangedToFinished = prevPhase !== 'finished' && currentPhase === 'finished';
 
-    console.log(`[Pot Distribution] 🔍 Checking - Pot: $${prevPot} -> $${currentPot} (decrease: $${potDecrease}), Phase: ${prevPhase} -> ${currentPhase}`);
 
     // If pot decreased OR phase changed to 'finished', check for winners
     // Phase changes to 'finished' after pot distribution, so this is a reliable trigger
     if (potDecrease > 0 || phaseChangedToFinished) {
       if (potDecrease > 0) {
-        console.log(`[Pot Distribution] 🎉 Pot decreased: $${prevPot} -> $${currentPot} (decrease: $${potDecrease})`);
       }
       if (phaseChangedToFinished) {
-        console.log(`[Pot Distribution] 🎉 Phase changed to finished - pot was distributed`);
       }
       
       // Find players whose chips increased (winners)
@@ -581,18 +489,15 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
         const baselineChips = prevChips !== undefined ? prevChips : currentChips;
         const chipIncrease = currentChips - baselineChips;
         
-        console.log(`[Pot Distribution] 👤 ${player.name}: chips $${baselineChips} -> $${currentChips} (increase: $${chipIncrease})`);
         
         // If chips increased and (pot decreased OR phase finished), this player won
         if (chipIncrease > 0 && (potDecrease > 0 || phaseChangedToFinished)) {
           // Calculate the actual winnings (use pot decrease if available, otherwise chip increase)
           const winnings = potDecrease > 0 ? Math.min(chipIncrease, potDecrease) : chipIncrease;
           
-          console.log(`[Pot Distribution] 🏆 ${player.name} won $${winnings} (prev: $${baselineChips}, current: $${currentChips}, pot decrease: $${potDecrease})`);
           setPotDistributionAnimations(prev => {
             const updated = new Map(prev);
             updated.set(player.id, { amount: winnings, isAnimating: true });
-            console.log(`[Pot Distribution] ✅ Added distribution animation for ${player.name}, total animations: ${updated.size}`);
             return updated;
           });
           
@@ -601,7 +506,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             setPotDistributionAnimations(prev => {
               const updated = new Map(prev);
               updated.delete(player.id);
-              console.log(`[Pot Distribution] 🧹 Cleared animation for ${player.name}`);
               return updated;
             });
           }, 2500);
@@ -631,7 +535,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     const prevPot = prevPotRef.current;
     const potIncrease = currentPot - prevPot;
     
-    console.log(`[Bet Animation] 🔍 Checking bets - Pot: $${prevPot} -> $${currentPot} (increase: $${potIncrease})`);
 
     // If pot increased, find which player(s) contributed
     if (potIncrease > 0) {
@@ -639,17 +542,14 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
         const prevTotalBet = prevBetRef.current.get(player.id) || 0;
         const currentTotalBet = player.totalBetThisRound || 0;
         
-        console.log(`[Bet Animation] 👤 ${player.name}: totalBetThisRound $${prevTotalBet} -> $${currentTotalBet}`);
         
         // If player's total bet this round increased, create animation
         if (currentTotalBet > prevTotalBet) {
           const betIncrease = currentTotalBet - prevTotalBet;
           if (betIncrease > 0) {
-            console.log(`[Bet Animation] 💰 ${player.name} bet $${betIncrease} (prev total: $${prevTotalBet}, current total: $${currentTotalBet})`);
             setBetAnimations(prev => {
               const updated = new Map(prev);
               updated.set(player.id, { amount: betIncrease, isAnimating: true });
-              console.log(`[Bet Animation] ✅ Added animation for ${player.name}, total animations: ${updated.size}`);
               return updated;
             });
             
@@ -658,7 +558,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               setBetAnimations(prev => {
                 const updated = new Map(prev);
                 updated.delete(player.id);
-                console.log(`[Bet Animation] 🧹 Cleared animation for ${player.name}`);
                 return updated;
               });
             }, 2500);
@@ -1003,20 +902,10 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 const retryPlayerCard = playerCardRefs.current.get(playerId);
                 const retryPot = potRef.current;
                 if (retryPlayerCard && retryPot) {
-                  console.log(`[Bet Animation] ✅ Refs now available for ${player.name}`);
                 }
               }, 100);
               return null;
             }
-            
-            console.log(`[Bet Animation] 🎨 Rendering animation for ${player.name}:`, {
-              playerId,
-              amount: anim.amount,
-              hasPlayerCard: !!playerCard,
-              hasPot: !!pot,
-              playerCardRect: playerCard.getBoundingClientRect(),
-              potRect: pot.getBoundingClientRect()
-            });
             
             return (
               <BetFlyAnimation
@@ -1094,7 +983,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   key === modelStat.modelName ||
                   key === player.name)) {
                 animationData = value;
-                console.log(`[Animation Display] 🔍 Found animation by key matching: ${key}`);
               }
             });
           }
@@ -1102,29 +990,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           const animationState = animationData?.type || null;
           const profitAmount = animationData?.profit || 0;
           
-          // Enhanced debug logging - ALWAYS log to see what's happening
-          const allAnimationsArray: Array<[string, { type: 'win' | 'loss'; profit: number } | null]> = [];
-          winLossAnimations.forEach((value, key) => {
-            allAnimationsArray.push([key, value]);
-          });
-          
-          console.log(`[Animation Display] 🔍 ${modelStat.modelName}:`, {
-            animationState,
-            profitAmount,
-            hasAnimationData: !!animationData,
-            modelId: modelStat.modelId,
-            playerId: player.id,
-            playerName: player.name,
-            modelName: modelStat.modelName,
-            winLossAnimationsSize: winLossAnimations.size,
-            allAnimations: allAnimationsArray,
-            tryingKeys: {
-              modelId: winLossAnimations.get(modelStat.modelId),
-              playerId: winLossAnimations.get(player.id),
-              modelName: winLossAnimations.get(modelStat.modelName),
-              playerName: winLossAnimations.get(player.name)
-            }
-          });
           
           // Get player's hand rank for color matching
           const playerHandRank = handRankMap.get(player.id);
@@ -1265,7 +1130,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   }}
                 >
                   {(() => {
-                    console.log(`[Animation Display] 🎨 Rendering WIN overlay for ${modelStat.modelName} with profit: $${profitAmount}`);
                     return null;
                   })()}
                   {/* Celebration Emojis */}
@@ -1318,7 +1182,6 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                   }}
                 >
                   {(() => {
-                    console.log(`[Animation Display] 🎨 Rendering LOSS overlay for ${modelStat.modelName} with loss: $${profitAmount}`);
                     return null;
                   })()}
                   {/* Loss Emojis */}

@@ -17,6 +17,7 @@ interface PaywallProps {
   onPaymentSuccess: () => void;
   amount: number; // Amount in USD
   chips: number; // Chips to receive
+  paymentAddress?: string; // Payment address for this game (overrides env variable)
 }
 
 // x402 Solana Network Configuration
@@ -46,10 +47,12 @@ const getRpcEndpoint = () => {
   return SOLANA_RPC_ENDPOINTS[0];
 };
 
-const X402_PAYMENT_ADDRESS = process.env.NEXT_PUBLIC_X402_PAYMENT_ADDRESS || '11111111111111111111111111111111'; // Replace with actual x402 payment address
+const DEFAULT_X402_PAYMENT_ADDRESS = process.env.NEXT_PUBLIC_X402_PAYMENT_ADDRESS || '11111111111111111111111111111111';
 const USDC_MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'; // USDC on Solana Testnet
 
-export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chips }: PaywallProps) {
+export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chips, paymentAddress }: PaywallProps) {
+  // Use provided payment address or fall back to env variable
+  const X402_PAYMENT_ADDRESS = paymentAddress || DEFAULT_X402_PAYMENT_ADDRESS;
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -481,6 +484,14 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Payment address copied to clipboard!');
+    }).catch(() => {
+      alert('Failed to copy. Address: ' + text);
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -493,6 +504,27 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
         >
           ×
         </button>
+        
+        {/* Payment Address Display */}
+        {X402_PAYMENT_ADDRESS && X402_PAYMENT_ADDRESS !== DEFAULT_X402_PAYMENT_ADDRESS && (
+          <div className="p-4 bg-blue-50 border-b border-blue-200">
+            <div className="text-xs font-semibold text-blue-900 mb-2">Payment Address (Testnet):</div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono bg-white px-2 py-1 rounded border border-blue-300 break-all">
+                {X402_PAYMENT_ADDRESS}
+              </code>
+              <button
+                onClick={() => copyToClipboard(X402_PAYMENT_ADDRESS)}
+                className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 whitespace-nowrap"
+              >
+                Copy
+              </button>
+            </div>
+            <div className="text-xs text-blue-700 mt-2">
+              💡 You can send SOL directly to this address for testing
+            </div>
+          </div>
+        )}
 
         <div className="p-8">
           {/* Header */}

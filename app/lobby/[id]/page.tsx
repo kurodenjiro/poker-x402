@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import GameBoard from '@/components/GameBoard';
 import ChatPlayground from '@/components/ChatPlayground';
-import TransactionHistory from '@/components/TransactionHistory';
+import X402Transactions from '@/components/X402Transactions';
 import PlayerStats from '@/components/PlayerStats';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -29,6 +29,7 @@ export default function LobbyPage() {
   const [hasFetchedInitialState, setHasFetchedInitialState] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false);
 
   // Define fetchGameState first so it can be used in other hooks
   const fetchGameState = useCallback(async () => {
@@ -378,6 +379,17 @@ export default function LobbyPage() {
               Home
             </Button>
             <Button
+              onClick={() => {
+                // Fetch latest stats before showing modal
+                fetchGameState();
+                setShowPlayerStatsModal(true);
+              }}
+              variant="outline"
+              className="h-10 px-4 font-semibold"
+            >
+              Player Statistics
+            </Button>
+            <Button
               onClick={() => setShowChatPlayground(!showChatPlayground)}
               variant="outline"
               className="h-10 px-4 font-semibold"
@@ -412,27 +424,53 @@ export default function LobbyPage() {
           {showChatPlayground && (
             <div className="lg:col-span-1 animate-fade-in">
               <div className="sticky top-6 flex flex-col gap-4">
-                {/* Player Statistics - Above Chat Playground */}
-                <PlayerStats stats={stats} rankings={rankings} />
-                
                 <Card className="p-6 bg-white border-2 border-gray-200 h-[calc(50vh-4rem)] flex flex-col">
                   <ChatPlayground
                     messages={chatMessages}
                     modelNames={rankings.map(r => r.modelName)}
                   />
                 </Card>
-                {/* X402 Transaction History Below Chat Playground */}
-                <Card className="p-6 bg-white border-2 border-gray-200 h-[calc(50vh-4rem)] flex flex-col">
-                  <TransactionHistory
-                    stats={stats}
-                    gameState={gameState}
-                  />
-                </Card>
+                {/* X402 Agent-to-Agent Transactions */}
+                <X402Transactions gameId={gameId} />
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Player Statistics Modal */}
+      {showPlayerStatsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
+          <Card className="bg-white border-2 border-gray-300 shadow-2xl max-w-4xl w-full relative max-h-[90vh] overflow-y-auto">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowPlayerStatsModal(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl font-bold w-8 h-8 flex items-center justify-center z-10 bg-white rounded-full hover:bg-gray-100"
+            >
+              ×
+            </button>
+
+            <div className="p-8">
+              {stats && stats.length > 0 ? (
+                <PlayerStats 
+                  stats={stats} 
+                  rankings={rankings}
+                  onBet={(playerName, playerId) => {
+                    // TODO: Implement bet functionality
+                    console.log('Bet on player:', playerName, playerId);
+                    // You can add bet logic here or open another modal for bet amount
+                  }}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 text-lg">No statistics available yet</p>
+                  <p className="text-gray-400 text-sm mt-2">Statistics will appear once the game starts</p>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </main>
   );
 }

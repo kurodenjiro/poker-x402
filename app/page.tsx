@@ -34,9 +34,10 @@ export default function Home() {
   const [isLoadingLobbies, setIsLoadingLobbies] = useState(true);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paymentAddress, setPaymentAddress] = useState<string | null>(null);
+  const [gameIdForPayment, setGameIdForPayment] = useState<string | null>(null);
   
   // Payment configuration
-  const SERVER_CREATION_FEE = 1; // $1 USD
   const CHIPS_PER_DOLLAR = 1000; // 1$ = 1000 chips
 
   // Fetch lobbies on mount and set up Socket.io for real-time updates
@@ -87,25 +88,45 @@ export default function Home() {
     };
   }, []);
 
-  const handleCreateGame = () => {
-    // Show paywall first
-    setShowPaywall(true);
-  };
-
-  const handlePaymentSuccess = async () => {
-    // Close paywall
-    setShowPaywall(false);
+  const handleCreateGame = async () => {
     setIsCreatingGame(true);
     
     try {
       // Generate a unique game ID
       const gameId = `game-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
-      // Prepare game config with chips from payment
-      const chipsFromPayment = SERVER_CREATION_FEE * CHIPS_PER_DOLLAR;
+      // Calculate payment amount: startingChips * numPlayers
+      // Example: 1000 chips * 4 players = $4
+      const numPlayers = selectedModels.length;
+      const totalAmountUSD = (startingChips / CHIPS_PER_DOLLAR) * numPlayers;
+      
+      // Get fixed payment address from environment (not per-game)
+      // The payment address is fixed and comes from .env.local
+      const paymentAddr = process.env.NEXT_PUBLIC_X402_PAYMENT_ADDRESS;
+      
+      if (!paymentAddr || paymentAddr === '11111111111111111111111111111111') {
+        throw new Error('Payment address not configured. Please set NEXT_PUBLIC_X402_PAYMENT_ADDRESS in .env.local');
+      }
+      
+      // Still create payment account record for tracking (but uses fixed address)
+      const response = await fetch(`/api/payment-account/${gameId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totalAmountUSD }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create payment account record');
+      }
+      
+      // Store game ID and payment address
+      setGameIdForPayment(gameId);
+      setPaymentAddress(paymentAddr);
+      
+      // Prepare game config
       const config = {
         modelNames: selectedModels,
-        startingChips: chipsFromPayment, // Use chips from payment
+        startingChips,
         smallBlind,
         bigBlind,
         maxHands,
@@ -115,22 +136,75 @@ export default function Home() {
       localStorage.setItem(`game-config-${gameId}`, JSON.stringify(config));
       
       // Save lobby to PostgreSQL
-      const response = await fetch(`/api/lobby/${gameId}`, {
+      const lobbyResponse = await fetch(`/api/lobby/${gameId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config, status: 'waiting' }),
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to create game');
+      if (!lobbyResponse.ok) {
+        throw new Error('Failed to create lobby');
       }
       
-      // Navigate to lobby with game ID after successful creation
-      router.push(`/lobby/${gameId}`);
+      // Show paywall with payment address
+      setShowPaywall(true);
     } catch (error) {
       console.error('Error creating game:', error);
-      setIsCreatingGame(false); // Re-enable button on error
+      setIsCreatingGame(false);
       alert('Failed to create game. Please try again.');
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    const currentGameId = gameIdForPayment;
+    
+    if (!currentGameId) {
+      alert('Game ID not found. Please try again.');
+      return;
+    }
+    
+    try {
+      // Wait a moment for transaction to confirm
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mark payment account as paid and distribute funds
+      const response = await fetch(`/api/payment-account/${currentGameId}/distribute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to distribute funds';
+        try {
+          const errorData = await response.json();
+          if (errorData && typeof errorData.error === 'string') {
+            errorMessage = errorData.error;
+          } else if (errorData && errorData.message) {
+            errorMessage = String(errorData.message);
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, use default message
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
+      // Close paywall
+      setShowPaywall(false);
+      
+      // Navigate to lobby
+      router.push(`/lobby/${currentGameId}`);
+    } catch (error: any) {
+      console.error('Error distributing funds:', error);
+      const errorMessage = error && error.message ? String(error.message) : 'Payment successful but failed to distribute funds.';
+      
+      // Show payment address in error if available
+      const currentPaymentAddr = paymentAddress;
+      const errorWithAddress = currentPaymentAddr 
+        ? `${errorMessage}\n\n💡 Payment Address: ${currentPaymentAddr}\n\nYou can send SOL directly to this address for testing, then try again.`
+        : `${errorMessage}\n\nIf payment was successful, you can manually trigger distribution from the lobby.`;
+      
+      alert(errorWithAddress);
     }
   };
 
@@ -248,11 +322,15 @@ export default function Home() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-blue-900">Server Creation Fee:</span>
-                  <span className="text-lg font-bold text-blue-600">${SERVER_CREATION_FEE}</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    ${((startingChips / CHIPS_PER_DOLLAR) * selectedModels.length).toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-sm font-medium text-blue-900">You'll Receive:</span>
-                  <span className="text-lg font-bold text-green-600">{(SERVER_CREATION_FEE * CHIPS_PER_DOLLAR).toLocaleString('en-US')} Chips</span>
+                  <span className="text-lg font-bold text-green-600">
+                    {(startingChips * selectedModels.length).toLocaleString('en-US')} Chips
+                  </span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-blue-300 text-center">
                   <Badge className="bg-blue-500 text-white text-xs">
@@ -392,10 +470,13 @@ export default function Home() {
         onClose={() => {
           setShowPaywall(false);
           setIsCreatingGame(false);
+          setPaymentAddress(null);
+          setGameIdForPayment(null);
         }}
         onPaymentSuccess={handlePaymentSuccess}
-        amount={SERVER_CREATION_FEE}
-        chips={SERVER_CREATION_FEE * CHIPS_PER_DOLLAR}
+        amount={(startingChips / CHIPS_PER_DOLLAR) * selectedModels.length}
+        chips={startingChips * selectedModels.length}
+        paymentAddress={paymentAddress || undefined}
       />
     </main>
   );
