@@ -138,8 +138,17 @@ export class GameManager {
             `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
             [this.gameId]
           );
-          if (global.io) {
-            global.io.emit('lobby-update');
+          // Broadcast lobby update via Supabase Realtime
+          try {
+            const { supabase } = await import('@/lib/supabase/server');
+            const channel = supabase.channel('lobby-updates');
+            await channel.send({
+              type: 'broadcast',
+              event: 'lobby-update',
+              payload: {},
+            });
+          } catch (error) {
+            console.error('Error broadcasting lobby update:', error);
           }
         } catch (error) {
           console.error('Error updating lobby status:', error);
@@ -181,8 +190,17 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          if (global.io) {
-            global.io.emit('lobby-update');
+          // Broadcast lobby update via Supabase Realtime
+          try {
+            const { supabase } = await import('@/lib/supabase/server');
+            const channel = supabase.channel('lobby-updates');
+            await channel.send({
+              type: 'broadcast',
+              event: 'lobby-update',
+              payload: {},
+            });
+          } catch (error) {
+            console.error('Error broadcasting lobby update:', error);
           }
         } catch (error) {
           console.error('Error updating lobby status:', error);
@@ -210,8 +228,17 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          if (global.io) {
-            global.io.emit('lobby-update');
+          // Broadcast lobby update via Supabase Realtime
+          try {
+            const { supabase } = await import('@/lib/supabase/server');
+            const channel = supabase.channel('lobby-updates');
+            await channel.send({
+              type: 'broadcast',
+              event: 'lobby-update',
+              payload: {},
+            });
+          } catch (error) {
+            console.error('Error broadcasting lobby update:', error);
           }
         } catch (error) {
           console.error('Error updating lobby status:', error);
@@ -458,9 +485,17 @@ export class GameManager {
               `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
               [this.gameId]
             );
-            // Emit lobby update
-            if (global.io) {
-              global.io.emit('lobby-update');
+            // Broadcast lobby update via Supabase Realtime
+            try {
+              const { supabase } = await import('@/lib/supabase/server');
+              const channel = supabase.channel('lobby-updates');
+              await channel.send({
+                type: 'broadcast',
+                event: 'lobby-update',
+                payload: {},
+              });
+            } catch (error) {
+              console.error('Error broadcasting lobby update:', error);
             }
           } catch (error) {
             console.error('Error updating lobby status:', error);
@@ -583,8 +618,17 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          if (global.io) {
-            global.io.emit('lobby-update');
+          // Broadcast lobby update via Supabase Realtime
+          try {
+            const { supabase } = await import('@/lib/supabase/server');
+            const channel = supabase.channel('lobby-updates');
+            await channel.send({
+              type: 'broadcast',
+              event: 'lobby-update',
+              payload: {},
+            });
+          } catch (error) {
+            console.error('Error broadcasting lobby update:', error);
           }
         } catch (error) {
           console.error('Error updating lobby status:', error);
@@ -617,8 +661,17 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          if (global.io) {
-            global.io.emit('lobby-update');
+          // Broadcast lobby update via Supabase Realtime
+          try {
+            const { supabase } = await import('@/lib/supabase/server');
+            const channel = supabase.channel('lobby-updates');
+            await channel.send({
+              type: 'broadcast',
+              event: 'lobby-update',
+              payload: {},
+            });
+          } catch (error) {
+            console.error('Error broadcasting lobby update:', error);
           }
         } catch (error) {
           console.error('Error updating lobby status:', error);
@@ -1359,8 +1412,9 @@ export class GameManager {
     try {
       // Check if DATABASE_URL is configured
       if (!process.env.DATABASE_URL) {
-        // Emit Socket.io event even without database
-        if (global.io) {
+        // Broadcast via Supabase Realtime even without database
+        try {
+          const { supabase } = await import('@/lib/supabase/server');
           const gameData = {
             game_id: this.gameId,
             game_state: this.getGameState(),
@@ -1370,7 +1424,14 @@ export class GameManager {
             chat_messages: chatHistory.getAllMessages(),
             simulator_status: getSimulatorStatus(),
           };
-          global.io.to(`game-${this.gameId}`).emit('game-state', gameData);
+          const channel = supabase.channel(`game-${this.gameId}`);
+          await channel.send({
+            type: 'broadcast',
+            event: 'game-state',
+            payload: gameData,
+          });
+        } catch (error) {
+          console.error('Error broadcasting game state via Supabase:', error);
         }
         return;
       }
@@ -1405,8 +1466,9 @@ export class GameManager {
         ]
       );
 
-      // Emit Socket.io event for real-time updates
-      if (global.io) {
+      // Broadcast via Supabase Realtime for real-time updates
+      try {
+        const { supabase } = await import('@/lib/supabase/server');
         const gameData = {
           game_id: this.gameId,
           game_state: gameState,
@@ -1416,7 +1478,14 @@ export class GameManager {
           chat_messages: chatMessages || [],
           simulator_status: simulatorStatus,
         };
-        global.io.to(`game-${this.gameId}`).emit('game-state', gameData);
+        const channel = supabase.channel(`game-${this.gameId}`);
+        await channel.send({
+          type: 'broadcast',
+          event: 'game-state',
+          payload: gameData,
+        });
+      } catch (error) {
+        console.error('Error broadcasting game state via Supabase:', error);
       }
     } catch (error) {
       console.error('Error saving game state to database:', error);

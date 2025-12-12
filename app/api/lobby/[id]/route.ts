@@ -38,9 +38,17 @@ export async function POST(
       );
     }
 
-    // Emit Socket.io event for lobby updates
-    if (global.io) {
-      global.io.emit('lobby-update');
+    // Broadcast lobby update via Supabase Realtime
+    try {
+      const { supabase } = await import('@/lib/supabase/server');
+      const channel = supabase.channel('lobby-updates');
+      await channel.send({
+        type: 'broadcast',
+        event: 'lobby-update',
+        payload: {},
+      });
+    } catch (error) {
+      console.error('Error broadcasting lobby update:', error);
     }
 
     return NextResponse.json({ success: true });

@@ -1,8 +1,5 @@
-import { Server as SocketIOServer } from 'socket.io';
-
-declare global {
-  var io: SocketIOServer | undefined;
-}
+// Supabase Realtime is used instead of Socket.io
+// No global variables needed
 
 export {};
 

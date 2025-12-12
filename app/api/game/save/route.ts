@@ -49,9 +49,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Emit Socket.io event for real-time updates
-    if (global.io) {
-      global.io.to(`game-${gameId}`).emit('game-state', gameData);
+    // Broadcast game state update via Supabase Realtime
+    try {
+      const { supabase } = await import('@/lib/supabase/server');
+      const channel = supabase.channel(`game-${gameId}`);
+      await channel.send({
+        type: 'broadcast',
+        event: 'game-state',
+        payload: gameData,
+      });
+    } catch (error) {
+      console.error('Error broadcasting game state:', error);
     }
 
     return NextResponse.json({ success: true });

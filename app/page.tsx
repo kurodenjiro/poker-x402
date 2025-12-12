@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { io } from 'socket.io-client';
+import { supabase } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,34 +56,27 @@ export default function Home() {
 
     fetchLobbies();
 
-    // Set up Socket.io for real-time lobby updates
-    const socket = io(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000', {
-      path: '/api/socket',
+    // Set up Supabase Realtime for real-time lobby updates
+    const channel = supabase.channel('lobby-updates', {
+      config: {
+        broadcast: { self: true },
+      },
     });
 
-    socket.on('connect', () => {
-      console.log('Socket connected for lobby updates');
-    });
+    channel
+      .on('broadcast', { event: 'lobby-update' }, () => {
+        console.log('[Supabase Realtime] Lobby update received');
+        fetchLobbies();
+      })
+      .subscribe((status) => {
+        console.log('[Supabase Realtime] Lobby channel status:', status);
+      });
 
-    socket.on('disconnect', () => {
-      console.log('Socket disconnected for lobby updates');
-    });
-
-    socket.on('reconnect', () => {
-      console.log('Socket reconnected for lobby updates');
-      fetchLobbies();
-    });
-
-    socket.on('lobby-update', () => {
-      console.log('Lobby update received');
-      fetchLobbies();
-    });
-
-    // More frequent fallback polling for smoother updates (every 5 seconds)
+    // Fallback polling for smoother updates (every 5 seconds)
     const interval = setInterval(fetchLobbies, 5000);
 
     return () => {
-      socket.disconnect();
+      supabase.removeChannel(channel);
       clearInterval(interval);
     };
   }, []);

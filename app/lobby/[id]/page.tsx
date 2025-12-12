@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { io, Socket } from 'socket.io-client';
+import { supabase } from '@/lib/supabase/client';
 import GameBoard from '@/components/GameBoard';
 import ChatPlayground from '@/components/ChatPlayground';
 import X402Transactions from '@/components/X402Transactions';
@@ -25,9 +25,7 @@ export default function LobbyPage() {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [showChatPlayground, setShowChatPlayground] = useState(true);
   const [gameConfig, setGameConfig] = useState<any>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [hasFetchedInitialState, setHasFetchedInitialState] = useState(false);
-  const [socketConnected, setSocketConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false);
 
@@ -63,90 +61,60 @@ export default function LobbyPage() {
     }
   }, [gameId]);
 
-  // Initialize Socket.io connection for real-time updates with auto-reconnect
+  // Initialize Supabase Realtime connection for real-time updates
   useEffect(() => {
     setConnectionStatus('connecting');
     
-    // Use window.location for client-side connection
-    const socketUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    console.log('[Supabase Realtime] Setting up channel for game:', gameId);
     
-    console.log('[Socket] Connecting to:', socketUrl, 'with path: /api/socket');
-    
-    const socketInstance = io(socketUrl, {
-      path: '/api/socket',
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: Infinity,
-      timeout: 20000,
-      transports: ['websocket', 'polling'],
-      autoConnect: true,
+    // Create a channel for this game
+    const channel = supabase.channel(`game-${gameId}`, {
+      config: {
+        broadcast: { self: true },
+        presence: { key: gameId },
+      },
     });
 
-    socketInstance.on('connect', () => {
-      console.log('Socket connected');
-      setSocketConnected(true);
-      setConnectionStatus('connected');
-      socketInstance.emit('join-game', gameId);
-      // Fetch initial state when socket connects
-      fetchGameState();
-    });
-
-    socketInstance.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
-      setSocketConnected(false);
-      setConnectionStatus('disconnected');
-      
-      // Auto-reconnect is handled by socket.io, but show status
-      if (reason === 'io server disconnect') {
-        // Server disconnected, need to manually reconnect
-        socketInstance.connect();
-      }
-    });
-
-    socketInstance.on('reconnect', (attemptNumber) => {
-      console.log('Socket reconnected after', attemptNumber, 'attempts');
-      setSocketConnected(true);
-      setConnectionStatus('connected');
-      socketInstance.emit('join-game', gameId);
-      fetchGameState();
-    });
-
-    socketInstance.on('reconnect_attempt', () => {
-      console.log('Attempting to reconnect...');
-      setConnectionStatus('connecting');
-    });
-
-    socketInstance.on('reconnect_error', (error) => {
-      console.error('Reconnection error:', error);
-      setConnectionStatus('disconnected');
-    });
-
-    socketInstance.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-      setConnectionStatus('disconnected');
-    });
-
-    // Listen for real-time game state updates via Socket.io
-    // This is the PRIMARY method - no frequent polling needed!
-    socketInstance.on('game-state', (data) => {
-      if (data) {
-        setGameState(data.game_state);
-        setStats(data.stats || []);
-        setRankings(data.rankings || []);
-        setIsRunning(data.is_running || false);
-        setChatMessages(data.chat_messages || []);
-        setSimulatorStatus(data.simulator_status || null);
-      }
-    });
-
-    setSocket(socketInstance);
+    // Subscribe to broadcast messages (game state updates)
+    channel
+      .on('broadcast', { event: 'game-state' }, (payload) => {
+        console.log('[Supabase Realtime] Received game-state update:', payload);
+        const data = payload.payload;
+        if (data) {
+          setGameState(data.game_state);
+          setStats(data.stats || []);
+          setRankings(data.rankings || []);
+          setIsRunning(data.is_running || false);
+          setChatMessages(data.chat_messages || []);
+          setSimulatorStatus(data.simulator_status || null);
+        }
+        setConnectionStatus('connected');
+      })
+      .on('broadcast', { event: 'lobby-update' }, () => {
+        console.log('[Supabase Realtime] Lobby update received');
+        // Trigger a refetch if needed
+        fetchGameState();
+      })
+      .subscribe((status) => {
+        console.log('[Supabase Realtime] Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected');
+          // Fetch initial state when subscribed
+          fetchGameState();
+        } else if (status === 'CHANNEL_ERROR') {
+          setConnectionStatus('disconnected');
+          console.error('[Supabase Realtime] Channel error');
+        } else if (status === 'TIMED_OUT') {
+          setConnectionStatus('disconnected');
+          console.error('[Supabase Realtime] Connection timed out');
+        } else {
+          setConnectionStatus('connecting');
+        }
+      });
 
     return () => {
-      socketInstance.emit('leave-game', gameId);
-      socketInstance.disconnect();
+      console.log('[Supabase Realtime] Unsubscribing from channel');
+      supabase.removeChannel(channel);
     };
   }, [gameId, fetchGameState]);
 
@@ -204,25 +172,25 @@ export default function LobbyPage() {
     };
 
     loadConfig();
-    // Initial fetch on mount - Socket.io will handle all subsequent real-time updates
+    // Initial fetch on mount - Supabase Realtime will handle all subsequent real-time updates
     fetchGameState();
     
-    // Minimal fallback polling only if Socket.io connection fails
+    // Minimal fallback polling only if Supabase Realtime connection fails
     // This is a safety net, not the primary update mechanism
     let fallbackInterval: NodeJS.Timeout | null = null;
     
-    // Only start fallback polling if socket is not connected after 5 seconds
+    // Only start fallback polling if connection is not connected after 5 seconds
     const fallbackTimer = setTimeout(() => {
-      if (!socketConnected) {
-        console.log('Socket not connected, starting fallback polling');
+      if (connectionStatus !== 'connected') {
+        console.log('Supabase Realtime not connected, starting fallback polling');
         fallbackInterval = setInterval(() => {
           fetchGameState();
-        }, 5000); // Poll every 5 seconds as fallback (more frequent for smoother updates)
+        }, 5000); // Poll every 5 seconds as fallback
       }
     }, 5000);
     
-    // Stop fallback polling if socket connects
-    if (socketConnected && fallbackInterval) {
+    // Stop fallback polling if connection is established
+    if (connectionStatus === 'connected' && fallbackInterval) {
       clearInterval(fallbackInterval);
       fallbackInterval = null;
     }
@@ -233,7 +201,7 @@ export default function LobbyPage() {
         clearInterval(fallbackInterval);
       }
     };
-  }, [gameId, fetchGameState, socketConnected]);
+  }, [gameId, fetchGameState, connectionStatus]);
 
   // Track if we've attempted to start the game to prevent multiple starts
   const [hasAttemptedStart, setHasAttemptedStart] = useState(false);
