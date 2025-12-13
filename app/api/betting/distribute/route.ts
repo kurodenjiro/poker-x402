@@ -1,7 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Connection, Keypair } from '@solana/web3.js';
+import { Connection, Keypair, Transaction, VersionedTransaction } from '@solana/web3.js';
 import { PokerBettingContract } from '@/lib/solana/betting-contract';
-import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
+import { AnchorProvider } from '@coral-xyz/anchor';
+
+// Simple Wallet implementation for server-side use
+class NodeWallet {
+  constructor(readonly payer: Keypair) { }
+
+  get publicKey() {
+    return this.payer.publicKey;
+  }
+
+  async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
+    if (tx instanceof Transaction) {
+      tx.partialSign(this.payer);
+    } else {
+      tx.sign([this.payer]);
+    }
+    return tx;
+  }
+
+  async signAllTransactions<T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]> {
+    return txs.map((t) => {
+      if (t instanceof Transaction) {
+        t.partialSign(this.payer);
+      } else {
+        t.sign([this.payer]);
+      }
+      return t;
+    });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +62,7 @@ export async function POST(request: NextRequest) {
       'confirmed'
     );
 
-    const wallet = new Wallet(ownerKeypair);
+    const wallet = new NodeWallet(ownerKeypair);
     const contract = new PokerBettingContract(connection, wallet);
 
     // Distribute winnings to all winners
@@ -52,4 +81,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 

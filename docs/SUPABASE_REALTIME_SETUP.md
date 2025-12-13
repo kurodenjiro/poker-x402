@@ -77,3 +77,4 @@ All Socket.io code has been replaced with Supabase Realtime:
 - No more `server.js` custom server needed
 - Removed `socket.io` and `socket.io-client` dependencies
 
+

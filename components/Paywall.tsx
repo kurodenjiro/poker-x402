@@ -236,7 +236,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
       console.log('[Paywall] Using wallet public key:', fromPublicKey.toString());
 
       // Validate payment address
-      let paymentAddress: PublicKey;
+      let paymentAddress: InstanceType<typeof PublicKey>;
       try {
         paymentAddress = new PublicKey(X402_PAYMENT_ADDRESS);
         console.log('[Paywall] Created to PublicKey:', paymentAddress.toString());

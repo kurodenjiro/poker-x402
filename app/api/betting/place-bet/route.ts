@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { PokerBettingContract } from '@/lib/solana/betting-contract';
-import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,4 +31,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 

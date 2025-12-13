@@ -5,7 +5,6 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { PokerBettingContract } from '@/lib/solana/betting-contract';
-import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +15,7 @@ interface BettingPanelProps {
   lobbyStatus?: 'Waiting' | 'Running' | 'Finished';
 }
 
-export default function BettingPanel({ gameId, playerNames, lobbyStatus = 'Waiting' }: BettingPanelProps) {
+export default function BettingPanel({ gameId, playerNames, lobbyStatus: lobbyStatusProp }: BettingPanelProps) {
   const { publicKey, signTransaction, signAllTransactions, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const [bets, setBets] = useState<any[]>([]);
@@ -25,6 +24,9 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus = 'Waiti
   const [selectedPlayer, setSelectedPlayer] = useState<string>('');
   const [betAmount, setBetAmount] = useState<string>('0.1');
   const [error, setError] = useState<string | null>(null);
+  
+  // Ensure lobbyStatus has the correct type
+  const lobbyStatus = (lobbyStatusProp ?? 'Waiting') as 'Waiting' | 'Running' | 'Finished';
 
   const connection = new Connection(
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com',
@@ -78,7 +80,8 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus = 'Waiti
     setError(null);
 
     try {
-      const wallet: Wallet = {
+      // Create wallet object compatible with PokerBettingContract
+      const wallet = {
         publicKey,
         signTransaction: signTransaction!,
         signAllTransactions: signAllTransactions!,
@@ -273,7 +276,7 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus = 'Waiti
         {/* Place Bet Button */}
         <Button
           onClick={handlePlaceBet}
-          disabled={!connected || isLoading || !selectedPlayer || lobbyStatus === 'Finished'}
+          disabled={!connected || isLoading || !selectedPlayer || (lobbyStatus as string) === 'Finished'}
           className="w-full"
         >
           {isLoading ? 'Placing Bet...' : `Place Bet (${betAmount} SOL)`}

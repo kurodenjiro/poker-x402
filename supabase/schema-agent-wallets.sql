@@ -17,3 +17,4 @@ DROP TRIGGER IF EXISTS update_agent_wallets_updated_at ON agent_wallets;
 CREATE TRIGGER update_agent_wallets_updated_at BEFORE UPDATE ON agent_wallets
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+

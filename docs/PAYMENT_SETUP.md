@@ -75,3 +75,4 @@ Agents make x402 payments to each other
 4. Payment goes to fixed address
 5. Funds are distributed to agent wallets automatically
 
+

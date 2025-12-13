@@ -109,3 +109,4 @@ import BettingPanel from '@/components/BettingPanel';
 - All funds are held in escrow until distribution
 - Smart contract validates all operations on-chain
 
+
