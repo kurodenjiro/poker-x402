@@ -1,0 +1,347 @@
+{
+  "version": "0.1.0",
+  "name": "poker_betting",
+  "instructions": [
+    {
+      "name": "createLobby",
+      "accounts": [
+        {
+          "name": "lobby",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "gameId",
+          "type": "string"
+        },
+        {
+          "name": "modelNames",
+          "type": {
+            "vec": "string"
+          }
+        },
+        {
+          "name": "startingChips",
+          "type": "u64"
+        },
+        {
+          "name": "smallBlind",
+          "type": "u64"
+        },
+        {
+          "name": "bigBlind",
+          "type": "u64"
+        },
+        {
+          "name": "maxHands",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "placeBet",
+      "accounts": [
+        {
+          "name": "lobby",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "bettor",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "playerName",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "updateLobbyStatus",
+      "accounts": [
+        {
+          "name": "lobby",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "status",
+          "type": {
+            "defined": "LobbyStatus"
+          }
+        }
+      ]
+    },
+    {
+      "name": "distributeSingleWinning",
+      "accounts": [
+        {
+          "name": "lobby",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "bettor",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "winnerName",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Lobby",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "publicKey"
+          },
+          {
+            "name": "gameId",
+            "type": "string"
+          },
+          {
+            "name": "modelNames",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "startingChips",
+            "type": "u64"
+          },
+          {
+            "name": "smallBlind",
+            "type": "u64"
+          },
+          {
+            "name": "bigBlind",
+            "type": "u64"
+          },
+          {
+            "name": "maxHands",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "LobbyStatus"
+            }
+          },
+          {
+            "name": "totalBets",
+            "type": "u64"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "updatedAt",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Bet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bettor",
+            "type": "publicKey"
+          },
+          {
+            "name": "lobby",
+            "type": "publicKey"
+          },
+          {
+            "name": "playerName",
+            "type": "string"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "placedAt",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "BetStatus"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "LobbyStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Waiting"
+          },
+          {
+            "name": "Running"
+          },
+          {
+            "name": "Finished"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BetStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Paid"
+          },
+          {
+            "name": "Refunded"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "LobbyNotOpenForBets",
+      "msg": "Lobby is not open for bets."
+    },
+    {
+      "code": 6001,
+      "name": "InvalidPlayerName",
+      "msg": "Invalid player name."
+    },
+    {
+      "code": 6002,
+      "name": "BetAmountMustBePositive",
+      "msg": "Bet amount must be positive."
+    },
+    {
+      "code": 6003,
+      "name": "Unauthorized",
+      "msg": "Unauthorized to perform this action."
+    },
+    {
+      "code": 6004,
+      "name": "LobbyNotFinished",
+      "msg": "Lobby has not finished yet."
+    },
+    {
+      "code": 6005,
+      "name": "InvalidBetAccount",
+      "msg": "Invalid bet account for this lobby."
+    },
+    {
+      "code": 6006,
+      "name": "InvalidBettor",
+      "msg": "Bettor does not match the bet account."
+    },
+    {
+      "code": 6007,
+      "name": "BetOnWrongPlayer",
+      "msg": "Bet was placed on a different player."
+    },
+    {
+      "code": 6008,
+      "name": "BetAlreadyProcessed",
+      "msg": "Bet has already been processed (paid or refunded)."
+    },
+    {
+      "code": 6009,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow."
+    }
+  ],
+  "metadata": {
+    "address": "C9gkx85KkadbwQEyCrASfdYVdWS1CcZ5K1cxspfkt9N1"
+  }
+}
+

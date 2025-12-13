@@ -1,0 +1,578 @@
+{
+  "address": "85kCu1ahjWTXMmgbpmrXgKNL2DxrrWusYrTYWwA68NMq",
+  "metadata": {
+    "name": "poker_betting",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Solana smart contract for poker game betting"
+  },
+  "instructions": [
+    {
+      "name": "create_lobby",
+      "discriminator": [
+        116,
+        55,
+        74,
+        48,
+        40,
+        51,
+        135,
+        155
+      ],
+      "accounts": [
+        {
+          "name": "lobby",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  111,
+                  98,
+                  98,
+                  121
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "game_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "game_id",
+          "type": "string"
+        },
+        {
+          "name": "model_names",
+          "type": {
+            "vec": "string"
+          }
+        },
+        {
+          "name": "starting_chips",
+          "type": "u64"
+        },
+        {
+          "name": "small_blind",
+          "type": "u64"
+        },
+        {
+          "name": "big_blind",
+          "type": "u64"
+        },
+        {
+          "name": "max_hands",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "distribute_single_winning",
+      "discriminator": [
+        2,
+        86,
+        68,
+        133,
+        253,
+        85,
+        72,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "lobby",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  111,
+                  98,
+                  98,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby.game_id",
+                "account": "Lobby"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bet",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby"
+              },
+              {
+                "kind": "account",
+                "path": "bettor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bettor",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "winner_name",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "place_bet",
+      "discriminator": [
+        222,
+        62,
+        67,
+        220,
+        63,
+        166,
+        126,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "lobby",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  111,
+                  98,
+                  98,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby.game_id",
+                "account": "Lobby"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bet",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby"
+              },
+              {
+                "kind": "account",
+                "path": "bettor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bettor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "player_name",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_lobby_status",
+      "discriminator": [
+        182,
+        152,
+        111,
+        42,
+        14,
+        233,
+        177,
+        201
+      ],
+      "accounts": [
+        {
+          "name": "lobby",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  111,
+                  98,
+                  98,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lobby.game_id",
+                "account": "Lobby"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "status",
+          "type": {
+            "defined": {
+              "name": "LobbyStatus"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Bet",
+      "discriminator": [
+        147,
+        23,
+        35,
+        59,
+        15,
+        75,
+        155,
+        32
+      ]
+    },
+    {
+      "name": "Lobby",
+      "discriminator": [
+        167,
+        194,
+        217,
+        163,
+        92,
+        92,
+        103,
+        49
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "LobbyNotOpenForBets",
+      "msg": "Lobby is not open for bets."
+    },
+    {
+      "code": 6001,
+      "name": "InvalidPlayerName",
+      "msg": "Invalid player name."
+    },
+    {
+      "code": 6002,
+      "name": "BetAmountMustBePositive",
+      "msg": "Bet amount must be positive."
+    },
+    {
+      "code": 6003,
+      "name": "Unauthorized",
+      "msg": "Unauthorized to perform this action."
+    },
+    {
+      "code": 6004,
+      "name": "LobbyNotFinished",
+      "msg": "Lobby has not finished yet."
+    },
+    {
+      "code": 6005,
+      "name": "InvalidBetAccount",
+      "msg": "Invalid bet account for this lobby."
+    },
+    {
+      "code": 6006,
+      "name": "InvalidBettor",
+      "msg": "Bettor does not match the bet account."
+    },
+    {
+      "code": 6007,
+      "name": "BetOnWrongPlayer",
+      "msg": "Bet was placed on a different player."
+    },
+    {
+      "code": 6008,
+      "name": "BetAlreadyProcessed",
+      "msg": "Bet has already been processed (paid or refunded)."
+    },
+    {
+      "code": 6009,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow."
+    }
+  ],
+  "types": [
+    {
+      "name": "Bet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bettor",
+            "type": "pubkey"
+          },
+          {
+            "name": "lobby",
+            "type": "pubkey"
+          },
+          {
+            "name": "player_name",
+            "type": "string"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "placed_at",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "BetStatus"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "BetStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Paid"
+          },
+          {
+            "name": "Refunded"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Lobby",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "game_id",
+            "type": "string"
+          },
+          {
+            "name": "model_names",
+            "type": {
+              "vec": "string"
+            }
+          },
+          {
+            "name": "starting_chips",
+            "type": "u64"
+          },
+          {
+            "name": "small_blind",
+            "type": "u64"
+          },
+          {
+            "name": "big_blind",
+            "type": "u64"
+          },
+          {
+            "name": "max_hands",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "LobbyStatus"
+              }
+            }
+          },
+          {
+            "name": "total_bets",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LobbyStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Waiting"
+          },
+          {
+            "name": "Running"
+          },
+          {
+            "name": "Finished"
+          }
+        ]
+      }
+    }
+  ]
+}

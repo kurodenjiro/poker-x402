@@ -589,6 +589,26 @@ export class GameManager {
         const sortedPlayers = [...state.players].sort((a, b) => b.chips - a.chips);
         const winner = sortedPlayers[0];
         
+        // Distribute betting winnings on-chain
+        if (this.gameId) {
+          try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/betting/distribute`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                gameId: this.gameId,
+                winnerName: winner.name,
+              }),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              console.log('✅ Betting winnings distributed:', data.transactions?.length || 0, 'transactions');
+            }
+          } catch (error) {
+            console.error('Error distributing betting winnings (non-fatal):', error);
+          }
+        }
+        
         // Ensure winner gets any remaining pot
         if (state.pot > 0) {
           winner.chips += state.pot;

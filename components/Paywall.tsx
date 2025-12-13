@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,8 +55,13 @@ const USDC_MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'; // USDC on Sol
 export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chips, paymentAddress }: PaywallProps) {
   // Use provided payment address or fall back to env variable
   const X402_PAYMENT_ADDRESS = paymentAddress || DEFAULT_X402_PAYMENT_ADDRESS;
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  
+  // Use wallet adapter for consistent wallet connection
+  const { publicKey, connected, signTransaction } = useWallet();
+  const { setVisible } = useWalletModal();
+  const walletAddress = publicKey?.toString() || null;
+  const walletConnected = connected;
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [solanaLib, setSolanaLib] = useState<any>(null);
@@ -105,45 +112,9 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
   // Convert USD to SOL using current price
   const solAmount = solPrice ? amount / solPrice : null;
 
-  useEffect(() => {
-    // Check if Phantom wallet is installed
-    if (typeof window !== 'undefined' && (window as any).solana?.isPhantom) {
-      checkWalletConnection();
-    }
-  }, []);
-
-  const checkWalletConnection = async () => {
-    try {
-      const provider = (window as any).solana;
-      if (provider && provider.isPhantom) {
-        const response = await provider.connect({ onlyIfTrusted: true });
-        if (response.publicKey) {
-          setWalletConnected(true);
-          setWalletAddress(response.publicKey.toString());
-        }
-      }
-    } catch (error) {
-      // Wallet not connected
-      setWalletConnected(false);
-    }
-  };
-
-  const connectWallet = async () => {
-    try {
-      const provider = (window as any).solana;
-      if (!provider || !provider.isPhantom) {
-        setError('Please install Phantom wallet');
-        window.open('https://phantom.app/', '_blank');
-        return;
-      }
-
-      const response = await provider.connect();
-      setWalletConnected(true);
-      setWalletAddress(response.publicKey.toString());
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to connect wallet');
-    }
+  // Wallet connection is handled by wallet adapter modal
+  const connectWallet = () => {
+    setVisible(true);
   };
 
   const processPayment = async () => {
@@ -256,17 +227,16 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
         throw new Error('Payment address not configured. Please set NEXT_PUBLIC_X402_PAYMENT_ADDRESS');
       }
 
-      // Validate addresses before creating transaction
-      let publicKey: any;
-      let paymentAddress: any;
-      
-      try {
-        publicKey = new PublicKey(walletAddress);
-        console.log('[Paywall] Created from PublicKey:', publicKey.toString());
-      } catch (err: any) {
-        throw new Error(`Invalid wallet address format: ${err.message}`);
+      // Use publicKey from wallet adapter
+      if (!publicKey) {
+        throw new Error('Wallet public key not available');
       }
+      
+      const fromPublicKey = publicKey;
+      console.log('[Paywall] Using wallet public key:', fromPublicKey.toString());
 
+      // Validate payment address
+      let paymentAddress: PublicKey;
       try {
         paymentAddress = new PublicKey(X402_PAYMENT_ADDRESS);
         console.log('[Paywall] Created to PublicKey:', paymentAddress.toString());
@@ -274,9 +244,9 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
         throw new Error(`Invalid payment address format: ${err.message}`);
       }
       
-      // Validate that both public keys are valid
-      if (!publicKey || !paymentAddress) {
-        throw new Error('Failed to create public keys');
+      // Validate that payment address is valid
+      if (!paymentAddress) {
+        throw new Error('Failed to create payment address');
       }
 
       // Validate blockhash
@@ -300,7 +270,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
         solAmount, 
         from: walletAddress, 
         to: X402_PAYMENT_ADDRESS,
-        fromPubkey: publicKey.toString(),
+        fromPubkey: fromPublicKey.toString(),
         toPubkey: paymentAddress.toString(),
         blockhash: blockhash.substring(0, 10) + '...'
       });
@@ -313,7 +283,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
       if (lastValidBlockHeight !== undefined) {
         transaction.lastValidBlockHeight = lastValidBlockHeight;
       }
-      transaction.feePayer = publicKey;
+      transaction.feePayer = fromPublicKey;
       
       console.log('[Paywall] Transaction initialized:', {
         hasBlockhash: !!transaction.recentBlockhash,
@@ -323,7 +293,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
       
       // Add transfer instruction
       const transferInstruction = SystemProgram.transfer({
-        fromPubkey: publicKey,
+        fromPubkey: fromPublicKey,
         toPubkey: paymentAddress,
         lamports: lamports,
       });
@@ -360,65 +330,18 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
         throw new Error(`Transaction invalid: ${serializeError.message || 'Unknown serialization error'}`);
       }
 
-      // Sign transaction (this will show wallet popup)
+      // Sign transaction using wallet adapter
       console.log('[Paywall] Requesting signature from wallet...');
       setStatusMessage('Please approve the transaction in your wallet...');
+      
+      if (!signTransaction) {
+        throw new Error('Wallet signTransaction not available. Please reconnect your wallet.');
+      }
+
       let signedTransaction;
       try {
-        // Ensure provider is still connected
-        if (!provider || !provider.publicKey) {
-          throw new Error('Wallet disconnected. Please reconnect.');
-        }
-
-        // Check if provider has sendTransaction (preferred method)
-        if (provider.sendTransaction && typeof provider.sendTransaction === 'function') {
-          console.log('[Paywall] Using sendTransaction method (recommended)');
-          setStatusMessage('Sending transaction to network...');
-          const signature = await provider.sendTransaction(transaction, connection, {
-            skipPreflight: false,
-            maxRetries: 3,
-          });
-          console.log('[Paywall] Transaction sent via sendTransaction:', signature);
-          
-          // Wait for confirmation
-          console.log('[Paywall] Waiting for confirmation...');
-          setStatusMessage('Waiting for transaction confirmation...');
-          const confirmPromise = connection.confirmTransaction(signature, 'processed');
-          const confirmTimeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Transaction confirmation timed out')), 30000)
-          );
-          
-          try {
-            await Promise.race([confirmPromise, confirmTimeout]);
-            console.log('[Paywall] Transaction confirmed');
-            setStatusMessage('Transaction confirmed!');
-          } catch (confirmError: any) {
-            console.warn('[Paywall] Confirmation timeout, checking transaction status...', confirmError);
-            setStatusMessage('Verifying transaction...');
-            try {
-              const txStatus = await connection.getSignatureStatus(signature);
-              if (txStatus?.value?.err) {
-                throw new Error('Transaction failed on chain');
-              }
-              console.log('[Paywall] Transaction found on chain, proceeding...');
-              setStatusMessage('Transaction verified!');
-            } catch (checkError) {
-              console.warn('[Paywall] Could not verify transaction, but proceeding anyway');
-              setStatusMessage('Transaction sent (verification pending)');
-            }
-          }
-
-          // Payment successful
-          console.log('[Paywall] Payment successful, calling onPaymentSuccess');
-          setStatusMessage('Payment successful!');
-          setIsProcessing(false);
-          onPaymentSuccess();
-          return; // Exit early since we handled everything
-        }
-
-        // Fallback to manual sign + send
-        console.log('[Paywall] Using manual sign + send method');
-        signedTransaction = await provider.signTransaction(transaction);
+        // Sign transaction using wallet adapter
+        signedTransaction = await signTransaction(transaction);
         
         if (!signedTransaction) {
           throw new Error('Transaction signing returned null');
@@ -436,7 +359,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
         throw new Error(`Signing failed: ${signError.message || 'Unknown error'}`);
       }
 
-      // Send transaction (only if we used manual signing)
+      // Send transaction
       console.log('[Paywall] Sending transaction...');
       setStatusMessage('Sending transaction to network...');
       const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
@@ -500,7 +423,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4">
       <Card className="bg-white border-2 border-gray-300 shadow-2xl max-w-md w-full relative">
         {/* Close Button */}
         <button

@@ -72,6 +72,31 @@ export async function POST(request: NextRequest) {
                  updated_at = NOW()`,
               [gameId, JSON.stringify(config), 'running']
             );
+            
+            // Create lobby on Solana smart contract
+            try {
+              const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/betting/create-lobby`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  gameId,
+                  config: {
+                    modelNames: config.modelNames,
+                    startingChips: config.startingChips || 1000,
+                    smallBlind: config.smallBlind || 10,
+                    bigBlind: config.bigBlind || 20,
+                    maxHands: config.maxHands || 10,
+                  },
+                }),
+              });
+              if (response.ok) {
+                const data = await response.json();
+                console.log('✅ Betting lobby created on-chain:', data.transaction);
+              }
+            } catch (error) {
+              console.error('Error creating betting lobby on-chain (non-fatal):', error);
+            }
+            
             // Broadcast lobby update via Supabase Realtime
             try {
               const { supabase } = await import('@/lib/supabase/server');

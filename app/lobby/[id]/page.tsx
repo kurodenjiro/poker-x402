@@ -7,6 +7,7 @@ import GameBoard from '@/components/GameBoard';
 import ChatPlayground from '@/components/ChatPlayground';
 import X402Transactions from '@/components/X402Transactions';
 import PlayerStats from '@/components/PlayerStats';
+import BettingPanel from '@/components/BettingPanel';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
@@ -392,6 +393,15 @@ export default function LobbyPage() {
           {showChatPlayground && (
             <div className="lg:col-span-1 animate-fade-in">
               <div className="sticky top-6 flex flex-col gap-4">
+                {/* Betting Panel */}
+                {gameConfig && (
+                  <BettingPanel
+                    gameId={gameId}
+                    playerNames={gameConfig.modelNames || []}
+                    lobbyStatus={isRunning ? 'Running' : gameState ? 'Finished' : 'Waiting'}
+                  />
+                )}
+                
                 <Card className="p-6 bg-white border-2 border-gray-200 h-[calc(50vh-4rem)] flex flex-col">
                   <ChatPlayground
                     messages={chatMessages}

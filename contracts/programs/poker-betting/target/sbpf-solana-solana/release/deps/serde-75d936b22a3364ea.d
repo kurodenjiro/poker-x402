@@ -1,0 +1,14 @@
+/Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/deps/libserde-75d936b22a3364ea.rmeta: /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs /Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/build/serde-0e68da2ad7005fee/out/private.rs
+
+/Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/deps/libserde-75d936b22a3364ea.rlib: /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs /Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/build/serde-0e68da2ad7005fee/out/private.rs
+
+/Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/deps/serde-75d936b22a3364ea.d: /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs /Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs /Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/build/serde-0e68da2ad7005fee/out/private.rs
+
+/Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/lib.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/integer128.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/mod.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/de.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-6f17d22bba15001f/serde-1.0.228/src/private/ser.rs:
+/Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/build/serde-0e68da2ad7005fee/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/mac/dev/poker-x402/programs/poker-betting/target/sbpf-solana-solana/release/build/serde-0e68da2ad7005fee/out
