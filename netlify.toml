@@ -1,0 +1,21 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+# Function configuration for longer-running operations
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["pg", "@supabase/supabase-js", "@solana/web3.js", "@coral-xyz/anchor"]
+  
+# Increase timeout for game operations (up to 26 seconds on Pro, 10 seconds on free tier)
+# Note: Free tier has 10s timeout, Pro/Enterprise can go up to 26s
+[functions."api/game"]
+  timeout = 26
+
