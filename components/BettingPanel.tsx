@@ -33,28 +33,30 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus: lobbySt
     'confirmed'
   );
 
-  useEffect(() => {
-    if (gameId) {
-      fetchBets();
-      const interval = setInterval(fetchBets, 5000); // Poll every 5 seconds
-      return () => clearInterval(interval);
-    }
-  }, [gameId]);
+  // Disabled: Don't fetch from /api/betting
+  // useEffect(() => {
+  //   if (gameId) {
+  //     fetchBets();
+  //     const interval = setInterval(fetchBets, 5000); // Poll every 5 seconds
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [gameId]);
 
-  const fetchBets = async () => {
-    try {
-      const response = await fetch(`/api/betting/${gameId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setBets(data.bets || []);
-        // Ensure totalBets is always a number
-        const total = data.lobby?.totalBets;
-        setTotalBets(typeof total === 'number' ? total : (typeof total === 'string' ? parseFloat(total) || 0 : 0));
-      }
-    } catch (err) {
-      console.error('Error fetching bets:', err);
-    }
-  };
+  // Disabled: Don't fetch from /api/betting
+  // const fetchBets = async () => {
+  //   try {
+  //     const response = await fetch(`/api/betting/${gameId}`);
+  //     if (response.ok) {
+  //       const data = await response.json();
+  //       setBets(data.bets || []);
+  //       // Ensure totalBets is always a number
+  //       const total = data.lobby?.totalBets;
+  //       setTotalBets(typeof total === 'number' ? total : (typeof total === 'string' ? parseFloat(total) || 0 : 0));
+  //     }
+  //   } catch (err) {
+  //     console.error('Error fetching bets:', err);
+  //   }
+  // };
 
   const handlePlaceBet = async () => {
     if (!connected || !publicKey) {
@@ -154,8 +156,8 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus: lobbySt
       setBetAmount('0.1');
       setSelectedPlayer('');
 
-      // Refresh bets
-      setTimeout(fetchBets, 2000);
+      // Disabled: Don't refresh bets from API
+      // setTimeout(fetchBets, 2000);
 
       alert(`Bet placed! Transaction: ${tx}`);
     } catch (err: any) {
