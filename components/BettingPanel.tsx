@@ -47,7 +47,9 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus: lobbySt
       if (response.ok) {
         const data = await response.json();
         setBets(data.bets || []);
-        setTotalBets(data.lobby?.totalBets || 0);
+        // Ensure totalBets is always a number
+        const total = data.lobby?.totalBets;
+        setTotalBets(typeof total === 'number' ? total : (typeof total === 'string' ? parseFloat(total) || 0 : 0));
       }
     } catch (err) {
       console.error('Error fetching bets:', err);
@@ -205,7 +207,7 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus: lobbySt
           <span>Place Your Bet</span>
         </h3>
         <Badge className="bg-blue-500 text-white">
-          {totalBets.toFixed(4)} SOL total
+          {(typeof totalBets === 'number' ? totalBets : parseFloat(String(totalBets)) || 0).toFixed(4)} SOL total
         </Badge>
       </div>
 

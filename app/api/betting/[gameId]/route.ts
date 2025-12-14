@@ -88,23 +88,46 @@ export async function GET(
       );
     }
 
-    // Validate metadata.address exists and is a string
-    if (!programIdl.metadata || !programIdl.metadata.address || typeof programIdl.metadata.address !== 'string') {
-      console.error('[API] Invalid IDL - metadata.address is missing or invalid');
+    // Ensure IDL has address field (can be at top level or in metadata)
+    // Anchor 0.32.1 requires top-level address, but IDL might have it in metadata
+    if (!programIdl.address) {
+      if (programIdl.metadata?.address) {
+        programIdl.address = programIdl.metadata.address;
+      } else {
+        // Use the hardcoded PROGRAM_ID as fallback
+        const { PROGRAM_ID } = await import('@/lib/solana/betting-contract');
+        programIdl.address = PROGRAM_ID.toString();
+        if (!programIdl.metadata) {
+          programIdl.metadata = {};
+        }
+        programIdl.metadata.address = PROGRAM_ID.toString();
+        console.log('[API] Added missing address to IDL:', PROGRAM_ID.toString());
+      }
+    } else if (!programIdl.metadata?.address) {
+      // If address exists at top level but not in metadata, add it to metadata
+      if (!programIdl.metadata) {
+        programIdl.metadata = {};
+      }
+      programIdl.metadata.address = programIdl.address;
+    }
+
+    // Validate the address is a valid PublicKey format
+    const addressToValidate = programIdl.address || programIdl.metadata?.address;
+    if (!addressToValidate || typeof addressToValidate !== 'string') {
+      console.error('[API] Invalid IDL - address is missing or invalid');
       return NextResponse.json(
-        { error: 'Invalid IDL metadata.address' },
+        { error: 'Invalid IDL address' },
         { status: 500 }
       );
     }
 
-    // Validate the address is a valid PublicKey format
     try {
-      const testPubkey = new (await import('@solana/web3.js')).PublicKey(programIdl.metadata.address);
-      console.log('[API] Validated IDL metadata.address:', testPubkey.toString());
+      const testPubkey = new PublicKey(addressToValidate);
+      console.log('[API] Validated IDL address:', testPubkey.toString());
     } catch (error: any) {
-      console.error('[API] Invalid PublicKey format in IDL metadata.address:', error.message);
+      console.error('[API] Invalid PublicKey format in IDL address:', error.message);
       return NextResponse.json(
-        { error: `Invalid PublicKey in IDL metadata: ${error.message}` },
+        { error: `Invalid PublicKey in IDL: ${error.message}` },
         { status: 500 }
       );
     }
