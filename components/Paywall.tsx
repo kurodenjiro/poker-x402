@@ -83,17 +83,13 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
     const fetchSolPrice = async () => {
       setIsLoadingPrice(true);
       try {
-        // Try CoinGecko API first
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-        const data = await response.json();
-        if (data.solana && data.solana.usd) {
-          setSolPrice(data.solana.usd);
-          console.log('[Paywall] SOL price fetched:', data.solana.usd, 'USD');
-        } else {
-          throw new Error('Invalid response from CoinGecko');
-        }
+        // Use the utility function with retry and timeout
+        const { getCachedSolPrice } = await import('@/lib/utils/sol-price-fetcher');
+        const price = await getCachedSolPrice();
+        setSolPrice(price);
+        console.log('[Paywall] SOL price fetched:', price, 'USD');
       } catch (err) {
-        console.warn('[Paywall] Failed to fetch SOL price from CoinGecko, using fallback:', err);
+        console.warn('[Paywall] Failed to fetch SOL price, using fallback:', err);
         // Fallback price (approximate SOL price)
         setSolPrice(150); // Fallback: ~$150 per SOL
       } finally {

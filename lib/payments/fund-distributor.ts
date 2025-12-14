@@ -65,18 +65,9 @@ export class FundDistributor {
     // Calculate distribution per agent
     const amountPerAgentUSD = totalAmountUSD / agentNames.length;
     
-    // Get SOL price
-    let solPrice = 150; // Fallback
-    try {
-      const fetch = (global as any).fetch || require('node-fetch');
-      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-      const data = await response.json();
-      if (data.solana && data.solana.usd) {
-        solPrice = data.solana.usd;
-      }
-    } catch (err) {
-      console.warn('[Fund Distributor] Could not fetch SOL price, using fallback:', err);
-    }
+    // Get SOL price (with retry and timeout)
+    const { getCachedSolPrice } = await import('../utils/sol-price-fetcher');
+    const solPrice = await getCachedSolPrice();
 
     const solAmountPerAgent = amountPerAgentUSD / solPrice;
     const lamportsPerAgent = Math.floor(solAmountPerAgent * LAMPORTS_PER_SOL);

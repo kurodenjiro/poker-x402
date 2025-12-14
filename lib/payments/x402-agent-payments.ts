@@ -130,19 +130,9 @@ export class X402AgentPaymentService {
         throw new Error(`Failed to get wallet keypairs for payment: ${fromAgent} -> ${toAgent}`);
       }
 
-      // Fetch current SOL price for accurate conversion
-      let solPrice = 150; // Fallback price
-      try {
-        // Use node-fetch or native fetch if available
-        const fetch = (global as any).fetch || require('node-fetch');
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-        const data = await response.json();
-        if (data.solana && data.solana.usd) {
-          solPrice = data.solana.usd;
-        }
-      } catch (err) {
-        console.warn('[X402 Payment] Could not fetch SOL price, using fallback:', err);
-      }
+      // Fetch current SOL price for accurate conversion (with retry and timeout)
+      const { getCachedSolPrice } = await import('../utils/sol-price-fetcher');
+      const solPrice = await getCachedSolPrice();
 
       // Direct Chip to SOL Conversion:
       // Starting chips = 1000 per player = $1
