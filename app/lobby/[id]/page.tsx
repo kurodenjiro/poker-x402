@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+// Supabase Realtime removed - using polling instead for Vercel compatibility
 import GameBoard from '@/components/GameBoard';
 import ChatPlayground from '@/components/ChatPlayground';
 import X402Transactions from '@/components/X402Transactions';
@@ -26,6 +27,7 @@ export default function LobbyPage() {
   const [showChatPlayground, setShowChatPlayground] = useState(true);
   const [gameConfig, setGameConfig] = useState<any>(null);
   const [hasFetchedInitialState, setHasFetchedInitialState] = useState(false);
+  // connectionStatus removed - using polling instead of Realtime
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false);
 
   // Define fetchGameState first so it can be used in other hooks
@@ -60,12 +62,12 @@ export default function LobbyPage() {
     }
   }, [gameId]);
 
-  // Use HTTP polling for game state updates (better for Vercel serverless)
+  // Polling-based updates (replaces Supabase Realtime for Vercel compatibility)
   useEffect(() => {
-    // Poll for game state updates every 2 seconds
+    // Poll for game state updates
     const pollInterval = setInterval(() => {
       fetchGameState();
-    }, 2000);
+    }, 2000); // Poll every 2 seconds
 
     return () => {
       clearInterval(pollInterval);
@@ -126,7 +128,7 @@ export default function LobbyPage() {
     };
 
     loadConfig();
-    // Initial fetch on mount - HTTP polling will handle all subsequent updates
+    // Initial fetch on mount - polling will handle all subsequent updates
     fetchGameState();
   }, [gameId, fetchGameState]);
 

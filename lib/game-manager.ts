@@ -138,7 +138,7 @@ export class GameManager {
             `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
             [this.gameId]
           );
-          // HTTP polling will handle updates - no broadcast needed
+          // Supabase Realtime removed - using polling instead for Vercel compatibility
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -179,7 +179,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // HTTP polling will handle updates - no broadcast needed
+          // Supabase Realtime removed - using polling instead for Vercel compatibility
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -206,7 +206,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // HTTP polling will handle updates - no broadcast needed
+          // Supabase Realtime removed - using polling instead for Vercel compatibility
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -452,18 +452,7 @@ export class GameManager {
               `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
               [this.gameId]
             );
-            // Broadcast lobby update via Supabase Realtime
-            try {
-              const { supabase } = await import('@/lib/supabase/server');
-              const channel = supabase.channel('lobby-updates');
-              await channel.send({
-                type: 'broadcast',
-                event: 'lobby-update',
-                payload: {},
-              });
-            } catch (error) {
-              console.error('Error broadcasting lobby update:', error);
-            }
+            // Supabase Realtime removed - using polling instead for Vercel compatibility
           } catch (error) {
             console.error('Error updating lobby status:', error);
           }
@@ -605,7 +594,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // HTTP polling will handle updates - no broadcast needed
+          // Supabase Realtime removed - using polling instead for Vercel compatibility
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -637,7 +626,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // HTTP polling will handle updates - no broadcast needed
+          // Supabase Realtime removed - using polling instead for Vercel compatibility
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -1382,28 +1371,7 @@ export class GameManager {
     try {
       // Check if DATABASE_URL is configured
       if (!process.env.DATABASE_URL) {
-        // Broadcast via Supabase Realtime even without database (non-blocking)
-        import('@/lib/supabase/server').then(({ supabase }) => {
-          const gameData = {
-            game_id: this.gameId,
-            game_state: this.getGameState(),
-            stats: this.getStats(),
-            rankings: this.getRankings(),
-            is_running: this.isRunning,
-            chat_messages: chatHistory.getAllMessages(),
-            simulator_status: getSimulatorStatus(),
-          };
-          const channel = supabase.channel(`game-${this.gameId}`);
-          channel.send({
-            type: 'broadcast',
-            event: 'game-state',
-            payload: gameData,
-          }).catch((error) => {
-            console.error('Error broadcasting game state via Supabase:', error);
-          });
-        }).catch((error) => {
-          console.error('Error importing Supabase server:', error);
-        });
+        // Supabase Realtime removed - using polling instead for Vercel compatibility
         return;
       }
 
@@ -1437,7 +1405,7 @@ export class GameManager {
         ]
       );
 
-      // HTTP polling will handle updates - no broadcast needed
+      // Supabase Realtime removed - using polling instead for Vercel compatibility
     } catch (error) {
       console.error('Error saving game state to database:', error);
     }

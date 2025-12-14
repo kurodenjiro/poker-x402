@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+// Supabase Realtime removed - using polling instead for Vercel compatibility
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,9 +56,8 @@ export default function Home() {
 
     fetchLobbies();
 
-    // Use HTTP polling for lobby updates (better for Vercel serverless)
-    // Poll every 3 seconds for lobby list updates
-    const pollInterval = setInterval(fetchLobbies, 3000);
+    // Polling-based updates (replaces Supabase Realtime for Vercel compatibility)
+    const pollInterval = setInterval(fetchLobbies, 5000); // Poll every 5 seconds
 
     return () => {
       clearInterval(pollInterval);

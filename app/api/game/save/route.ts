@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // HTTP polling will handle updates - no broadcast needed
+    // Supabase Realtime removed - using polling instead for Vercel compatibility
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

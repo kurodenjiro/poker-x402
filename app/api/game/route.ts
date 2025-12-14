@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
             
             // On-chain betting lobby creation removed as requested
             
-            // HTTP polling will handle updates - no broadcast needed
+            // Supabase Realtime removed - using polling instead for Vercel compatibility
           } catch (error) {
             console.error('Error saving lobby (non-fatal):', error);
             // Continue even if database save fails
