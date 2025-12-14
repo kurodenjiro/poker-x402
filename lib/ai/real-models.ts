@@ -118,7 +118,7 @@ export class ChatGPTModel implements AIModel {
         prompt,
         temperature: 0.7,
         maxTokens: 150,
-      });
+      } as any);
 
       this.lastResponse = text;
       return parseAIResponse(text);
@@ -161,7 +161,7 @@ export class GeminiModel implements AIModel {
         prompt,
         temperature: 0.7,
         maxTokens: 150,
-      });
+      } as any);
 
       this.lastResponse = text;
       return parseAIResponse(text);
@@ -208,7 +208,7 @@ export class GrokModel implements AIModel {
         prompt,
         temperature: 0.7,
         maxTokens: 150,
-      });
+      } as any);
 
       this.lastResponse = text;
       return parseAIResponse(text);
@@ -250,7 +250,7 @@ export class ClaudeModel implements AIModel {
         prompt,
         temperature: 0.7,
         maxTokens: 150,
-      });
+      } as any);
 
       this.lastResponse = text;
       return parseAIResponse(text);
