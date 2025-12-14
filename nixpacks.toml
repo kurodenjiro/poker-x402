@@ -5,7 +5,7 @@ NODE_VERSION = "20"
 nixPkgs = ["python3", "nodejs", "gcc", "gnumake", "pkg-config", "systemd.dev"]
 
 [phases.install]
-cmds = ["PYTHON=$(which python3) npm install"]
+cmds = ["export CFLAGS=\"-I$(find /nix/store -name 'libudev.h' -type f 2>/dev/null | head -1 | xargs dirname 2>/dev/null || echo '')\" && PYTHON=$(which python3) npm install"]
 
 [phases.build]
 cmds = ["npm run prebuild", "npm run build"]
