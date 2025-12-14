@@ -9,9 +9,12 @@ import { query } from '@/lib/db/postgres';
  * {
  *   "crons": [{
  *     "path": "/api/cron/update-games",
- *     "schedule": "*/30 * * * * *"  // Every 30 seconds
+ *     "schedule": "* * * * *"  // Every minute (Vercel minimum interval)
  *   }]
  * }
+ * 
+ * Note: Vercel cron uses 5-field format (minute hour day month weekday)
+ * Minimum interval is 1 minute. For faster updates, use client-side polling.
  */
 export async function GET(request: NextRequest) {
   try {
