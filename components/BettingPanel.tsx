@@ -221,11 +221,6 @@ export default function BettingPanel({ gameId, playerNames, lobbyStatus: lobbySt
         </div>
       )}
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
 
       <div className="space-y-4">
         {/* Player Selection */}
