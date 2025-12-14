@@ -138,18 +138,19 @@ export class GameManager {
             `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
             [this.gameId]
           );
-          // Broadcast lobby update via Supabase Realtime
-          try {
-            const { supabase } = await import('@/lib/supabase/server');
+          // Broadcast lobby update via Supabase Realtime (non-blocking)
+          import('@/lib/supabase/server').then(({ supabase }) => {
             const channel = supabase.channel('lobby-updates');
-            await channel.send({
+            channel.send({
               type: 'broadcast',
               event: 'lobby-update',
               payload: {},
+            }).catch((error) => {
+              console.error('Error broadcasting lobby update:', error);
             });
-          } catch (error) {
-            console.error('Error broadcasting lobby update:', error);
-          }
+          }).catch(() => {
+            // Silently fail - lobby updates are not critical
+          });
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -190,18 +191,19 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime
-          try {
-            const { supabase } = await import('@/lib/supabase/server');
+          // Broadcast lobby update via Supabase Realtime (non-blocking)
+          import('@/lib/supabase/server').then(({ supabase }) => {
             const channel = supabase.channel('lobby-updates');
-            await channel.send({
+            channel.send({
               type: 'broadcast',
               event: 'lobby-update',
               payload: {},
+            }).catch((error) => {
+              console.error('Error broadcasting lobby update:', error);
             });
-          } catch (error) {
-            console.error('Error broadcasting lobby update:', error);
-          }
+          }).catch(() => {
+            // Silently fail - lobby updates are not critical
+          });
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -228,18 +230,19 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime
-          try {
-            const { supabase } = await import('@/lib/supabase/server');
+          // Broadcast lobby update via Supabase Realtime (non-blocking)
+          import('@/lib/supabase/server').then(({ supabase }) => {
             const channel = supabase.channel('lobby-updates');
-            await channel.send({
+            channel.send({
               type: 'broadcast',
               event: 'lobby-update',
               payload: {},
+            }).catch((error) => {
+              console.error('Error broadcasting lobby update:', error);
             });
-          } catch (error) {
-            console.error('Error broadcasting lobby update:', error);
-          }
+          }).catch(() => {
+            // Silently fail - lobby updates are not critical
+          });
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -638,18 +641,19 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime
-          try {
-            const { supabase } = await import('@/lib/supabase/server');
+          // Broadcast lobby update via Supabase Realtime (non-blocking)
+          import('@/lib/supabase/server').then(({ supabase }) => {
             const channel = supabase.channel('lobby-updates');
-            await channel.send({
+            channel.send({
               type: 'broadcast',
               event: 'lobby-update',
               payload: {},
+            }).catch((error) => {
+              console.error('Error broadcasting lobby update:', error);
             });
-          } catch (error) {
-            console.error('Error broadcasting lobby update:', error);
-          }
+          }).catch(() => {
+            // Silently fail - lobby updates are not critical
+          });
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -681,18 +685,19 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime
-          try {
-            const { supabase } = await import('@/lib/supabase/server');
+          // Broadcast lobby update via Supabase Realtime (non-blocking)
+          import('@/lib/supabase/server').then(({ supabase }) => {
             const channel = supabase.channel('lobby-updates');
-            await channel.send({
+            channel.send({
               type: 'broadcast',
               event: 'lobby-update',
               payload: {},
+            }).catch((error) => {
+              console.error('Error broadcasting lobby update:', error);
             });
-          } catch (error) {
-            console.error('Error broadcasting lobby update:', error);
-          }
+          }).catch(() => {
+            // Silently fail - lobby updates are not critical
+          });
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -1437,9 +1442,8 @@ export class GameManager {
     try {
       // Check if DATABASE_URL is configured
       if (!process.env.DATABASE_URL) {
-        // Broadcast via Supabase Realtime even without database
-        try {
-          const { supabase } = await import('@/lib/supabase/server');
+        // Broadcast via Supabase Realtime even without database (non-blocking)
+        import('@/lib/supabase/server').then(({ supabase }) => {
           const gameData = {
             game_id: this.gameId,
             game_state: this.getGameState(),
@@ -1450,14 +1454,16 @@ export class GameManager {
             simulator_status: getSimulatorStatus(),
           };
           const channel = supabase.channel(`game-${this.gameId}`);
-          await channel.send({
+          channel.send({
             type: 'broadcast',
             event: 'game-state',
             payload: gameData,
+          }).catch((error) => {
+            console.error('Error broadcasting game state via Supabase:', error);
           });
-        } catch (error) {
-          console.error('Error broadcasting game state via Supabase:', error);
-        }
+        }).catch((error) => {
+          console.error('Error importing Supabase server:', error);
+        });
         return;
       }
 
@@ -1491,9 +1497,9 @@ export class GameManager {
         ]
       );
 
-      // Broadcast via Supabase Realtime for real-time updates
-      try {
-        const { supabase } = await import('@/lib/supabase/server');
+      // Broadcast via Supabase Realtime for real-time updates (non-blocking for better performance)
+      // Fire and forget - don't await to avoid blocking game execution
+      import('@/lib/supabase/server').then(({ supabase }) => {
         const gameData = {
           game_id: this.gameId,
           game_state: gameState,
@@ -1504,14 +1510,18 @@ export class GameManager {
           simulator_status: simulatorStatus,
         };
         const channel = supabase.channel(`game-${this.gameId}`);
-        await channel.send({
+        // Don't await - fire and forget for faster performance
+        channel.send({
           type: 'broadcast',
           event: 'game-state',
           payload: gameData,
+        }).catch((error) => {
+          // Only log errors, don't block execution
+          console.error('Error broadcasting game state via Supabase:', error);
         });
-      } catch (error) {
-        console.error('Error broadcasting game state via Supabase:', error);
-      }
+      }).catch((error) => {
+        console.error('Error importing Supabase server:', error);
+      });
     } catch (error) {
       console.error('Error saving game state to database:', error);
     }

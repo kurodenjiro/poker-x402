@@ -10,7 +10,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   realtime: {
     params: {
-      eventsPerSecond: 10,
+      eventsPerSecond: 100, // Increased from 10 to 100 for faster updates
+    },
+  },
+  global: {
+    headers: {
+      'x-client-info': 'poker-x402-server@1.0.0',
     },
   },
 });

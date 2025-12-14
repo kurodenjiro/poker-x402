@@ -59,25 +59,44 @@ export default function Home() {
     // Set up Supabase Realtime for real-time lobby updates
     const channel = supabase.channel('lobby-updates', {
       config: {
-        broadcast: { self: true },
+        broadcast: { self: false }, // Don't receive own broadcasts (optimization)
       },
     });
 
     channel
       .on('broadcast', { event: 'lobby-update' }, () => {
-        console.log('[Supabase Realtime] Lobby update received');
-        fetchLobbies();
+        fetchLobbies(); // Removed console.log for performance
       })
       .subscribe((status) => {
-        console.log('[Supabase Realtime] Lobby channel status:', status);
+        // Only log errors
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Supabase Realtime] Lobby channel error:', status);
+        }
       });
 
-    // Fallback polling for smoother updates (every 5 seconds)
-    const interval = setInterval(fetchLobbies, 5000);
+    // Reduced fallback polling interval (only if Realtime fails)
+    let fallbackInterval: NodeJS.Timeout | null = null;
+    let isSubscribed = false;
+    
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        isSubscribed = true;
+      }
+    });
+    
+    const fallbackTimer = setTimeout(() => {
+      // Only start fallback if channel not subscribed after 3 seconds
+      if (!isSubscribed) {
+        fallbackInterval = setInterval(fetchLobbies, 10000); // 10 seconds instead of 5
+      }
+    }, 3000);
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(interval);
+      clearTimeout(fallbackTimer);
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
     };
   }, []);
 

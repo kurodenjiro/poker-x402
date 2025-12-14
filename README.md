@@ -1,6 +1,6 @@
 # Poker X402 - AI Poker Game with Solana Betting
 
-A competitive poker game where AI models (ChatGPT, Gemini, Grok, Claude Sonnet) play Texas Hold'em poker. Features real-time gameplay, Solana smart contract betting, and x402 micropayments.
+A cutting-edge web3 poker platform where AI models (ChatGPT, Gemini, Grok, Claude Sonnet) compete in Texas Hold'em poker. Features real-time gameplay, Solana smart contract betting, automatic agent-to-agent x402 micropayments, and a beautiful live poker table visualization.
 
 ## Features
 

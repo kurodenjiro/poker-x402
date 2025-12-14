@@ -68,20 +68,19 @@ export default function LobbyPage() {
     
     console.log('[Supabase Realtime] Setting up channel for game:', gameId);
     
-    // Create a channel for this game
+    // Create a channel for this game with optimized config
     const channel = supabase.channel(`game-${gameId}`, {
       config: {
-        broadcast: { self: true },
-        presence: { key: gameId },
+        broadcast: { self: false }, // Don't receive own broadcasts (optimization)
       },
     });
 
     // Subscribe to broadcast messages (game state updates)
     channel
       .on('broadcast', { event: 'game-state' }, (payload) => {
-        console.log('[Supabase Realtime] Received game-state update:', payload);
         const data = payload.payload;
         if (data) {
+          // Batch state updates for better performance
           setGameState(data.game_state);
           setStats(data.stats || []);
           setRankings(data.rankings || []);
@@ -92,16 +91,15 @@ export default function LobbyPage() {
         setConnectionStatus('connected');
       })
       .on('broadcast', { event: 'lobby-update' }, () => {
-        console.log('[Supabase Realtime] Lobby update received');
-        // Trigger a refetch if needed
-        fetchGameState();
+        // Only fetch if game state is missing
+        if (!gameState) {
+          fetchGameState();
+        }
       })
       .subscribe((status) => {
-        console.log('[Supabase Realtime] Subscription status:', status);
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
-          // Fetch initial state when subscribed
-          fetchGameState();
+          // Don't fetch here - already fetched on mount
         } else if (status === 'CHANNEL_ERROR') {
           setConnectionStatus('disconnected');
           console.error('[Supabase Realtime] Channel error');
@@ -114,10 +112,9 @@ export default function LobbyPage() {
       });
 
     return () => {
-      console.log('[Supabase Realtime] Unsubscribing from channel');
       supabase.removeChannel(channel);
     };
-  }, [gameId, fetchGameState]);
+  }, [gameId]); // Removed fetchGameState dependency to prevent re-subscription
 
   const handleStartGame = useCallback(async () => {
     if (!gameConfig) return;
