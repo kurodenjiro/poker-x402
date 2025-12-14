@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,47 +55,12 @@ export default function Home() {
 
     fetchLobbies();
 
-    // Set up Supabase Realtime for real-time lobby updates
-    const channel = supabase.channel('lobby-updates', {
-      config: {
-        broadcast: { self: false }, // Don't receive own broadcasts (optimization)
-      },
-    });
-
-    channel
-      .on('broadcast', { event: 'lobby-update' }, () => {
-        fetchLobbies(); // Removed console.log for performance
-      })
-      .subscribe((status) => {
-        // Only log errors
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('[Supabase Realtime] Lobby channel error:', status);
-        }
-      });
-
-    // Reduced fallback polling interval (only if Realtime fails)
-    let fallbackInterval: NodeJS.Timeout | null = null;
-    let isSubscribed = false;
-    
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        isSubscribed = true;
-      }
-    });
-    
-    const fallbackTimer = setTimeout(() => {
-      // Only start fallback if channel not subscribed after 3 seconds
-      if (!isSubscribed) {
-        fallbackInterval = setInterval(fetchLobbies, 10000); // 10 seconds instead of 5
-      }
-    }, 3000);
+    // Use HTTP polling for lobby updates (better for Vercel serverless)
+    // Poll every 3 seconds for lobby list updates
+    const pollInterval = setInterval(fetchLobbies, 3000);
 
     return () => {
-      supabase.removeChannel(channel);
-      clearTimeout(fallbackTimer);
-      if (fallbackInterval) {
-        clearInterval(fallbackInterval);
-      }
+      clearInterval(pollInterval);
     };
   }, []);
 

@@ -138,19 +138,7 @@ export class GameManager {
             `UPDATE lobbies SET status = 'finished', updated_at = NOW() WHERE game_id = $1`,
             [this.gameId]
           );
-          // Broadcast lobby update via Supabase Realtime (non-blocking)
-          import('@/lib/supabase/server').then(({ supabase }) => {
-            const channel = supabase.channel('lobby-updates');
-            channel.send({
-              type: 'broadcast',
-              event: 'lobby-update',
-              payload: {},
-            }).catch((error) => {
-              console.error('Error broadcasting lobby update:', error);
-            });
-          }).catch(() => {
-            // Silently fail - lobby updates are not critical
-          });
+          // HTTP polling will handle updates - no broadcast needed
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -191,19 +179,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime (non-blocking)
-          import('@/lib/supabase/server').then(({ supabase }) => {
-            const channel = supabase.channel('lobby-updates');
-            channel.send({
-              type: 'broadcast',
-              event: 'lobby-update',
-              payload: {},
-            }).catch((error) => {
-              console.error('Error broadcasting lobby update:', error);
-            });
-          }).catch(() => {
-            // Silently fail - lobby updates are not critical
-          });
+          // HTTP polling will handle updates - no broadcast needed
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -230,19 +206,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime (non-blocking)
-          import('@/lib/supabase/server').then(({ supabase }) => {
-            const channel = supabase.channel('lobby-updates');
-            channel.send({
-              type: 'broadcast',
-              event: 'lobby-update',
-              payload: {},
-            }).catch((error) => {
-              console.error('Error broadcasting lobby update:', error);
-            });
-          }).catch(() => {
-            // Silently fail - lobby updates are not critical
-          });
+          // HTTP polling will handle updates - no broadcast needed
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -641,19 +605,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime (non-blocking)
-          import('@/lib/supabase/server').then(({ supabase }) => {
-            const channel = supabase.channel('lobby-updates');
-            channel.send({
-              type: 'broadcast',
-              event: 'lobby-update',
-              payload: {},
-            }).catch((error) => {
-              console.error('Error broadcasting lobby update:', error);
-            });
-          }).catch(() => {
-            // Silently fail - lobby updates are not critical
-          });
+          // HTTP polling will handle updates - no broadcast needed
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -685,19 +637,7 @@ export class GameManager {
             [this.gameId]
           );
           // Emit lobby update
-          // Broadcast lobby update via Supabase Realtime (non-blocking)
-          import('@/lib/supabase/server').then(({ supabase }) => {
-            const channel = supabase.channel('lobby-updates');
-            channel.send({
-              type: 'broadcast',
-              event: 'lobby-update',
-              payload: {},
-            }).catch((error) => {
-              console.error('Error broadcasting lobby update:', error);
-            });
-          }).catch(() => {
-            // Silently fail - lobby updates are not critical
-          });
+          // HTTP polling will handle updates - no broadcast needed
         } catch (error) {
           console.error('Error updating lobby status:', error);
         }
@@ -1497,31 +1437,7 @@ export class GameManager {
         ]
       );
 
-      // Broadcast via Supabase Realtime for real-time updates (non-blocking for better performance)
-      // Fire and forget - don't await to avoid blocking game execution
-      import('@/lib/supabase/server').then(({ supabase }) => {
-        const gameData = {
-          game_id: this.gameId,
-          game_state: gameState,
-          stats: stats || [],
-          rankings: rankings || [],
-          is_running: this.isRunning || false,
-          chat_messages: chatMessages || [],
-          simulator_status: simulatorStatus,
-        };
-        const channel = supabase.channel(`game-${this.gameId}`);
-        // Don't await - fire and forget for faster performance
-        channel.send({
-          type: 'broadcast',
-          event: 'game-state',
-          payload: gameData,
-        }).catch((error) => {
-          // Only log errors, don't block execution
-          console.error('Error broadcasting game state via Supabase:', error);
-        });
-      }).catch((error) => {
-        console.error('Error importing Supabase server:', error);
-      });
+      // HTTP polling will handle updates - no broadcast needed
     } catch (error) {
       console.error('Error saving game state to database:', error);
     }

@@ -38,18 +38,7 @@ export async function POST(
       );
     }
 
-    // Broadcast lobby update via Supabase Realtime
-    try {
-      const { supabase } = await import('@/lib/supabase/server');
-      const channel = supabase.channel('lobby-updates');
-      await channel.send({
-        type: 'broadcast',
-        event: 'lobby-update',
-        payload: {},
-      });
-    } catch (error) {
-      console.error('Error broadcasting lobby update:', error);
-    }
+    // HTTP polling will handle updates - no broadcast needed
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

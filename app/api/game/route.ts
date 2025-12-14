@@ -75,18 +75,7 @@ export async function POST(request: NextRequest) {
             
             // On-chain betting lobby creation removed as requested
             
-            // Broadcast lobby update via Supabase Realtime
-            try {
-              const { supabase } = await import('@/lib/supabase/server');
-              const channel = supabase.channel('lobby-updates');
-              await channel.send({
-                type: 'broadcast',
-                event: 'lobby-update',
-                payload: {},
-              });
-            } catch (error) {
-              console.error('Error broadcasting lobby update:', error);
-            }
+            // HTTP polling will handle updates - no broadcast needed
           } catch (error) {
             console.error('Error saving lobby (non-fatal):', error);
             // Continue even if database save fails

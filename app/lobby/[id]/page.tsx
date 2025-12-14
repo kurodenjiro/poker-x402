@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase/client';
 import GameBoard from '@/components/GameBoard';
 import ChatPlayground from '@/components/ChatPlayground';
 import X402Transactions from '@/components/X402Transactions';
@@ -27,7 +26,6 @@ export default function LobbyPage() {
   const [showChatPlayground, setShowChatPlayground] = useState(true);
   const [gameConfig, setGameConfig] = useState<any>(null);
   const [hasFetchedInitialState, setHasFetchedInitialState] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false);
 
   // Define fetchGameState first so it can be used in other hooks
@@ -62,59 +60,17 @@ export default function LobbyPage() {
     }
   }, [gameId]);
 
-  // Initialize Supabase Realtime connection for real-time updates
+  // Use HTTP polling for game state updates (better for Vercel serverless)
   useEffect(() => {
-    setConnectionStatus('connecting');
-    
-    console.log('[Supabase Realtime] Setting up channel for game:', gameId);
-    
-    // Create a channel for this game with optimized config
-    const channel = supabase.channel(`game-${gameId}`, {
-      config: {
-        broadcast: { self: false }, // Don't receive own broadcasts (optimization)
-      },
-    });
-
-    // Subscribe to broadcast messages (game state updates)
-    channel
-      .on('broadcast', { event: 'game-state' }, (payload) => {
-        const data = payload.payload;
-        if (data) {
-          // Batch state updates for better performance
-          setGameState(data.game_state);
-          setStats(data.stats || []);
-          setRankings(data.rankings || []);
-          setIsRunning(data.is_running || false);
-          setChatMessages(data.chat_messages || []);
-          setSimulatorStatus(data.simulator_status || null);
-        }
-        setConnectionStatus('connected');
-      })
-      .on('broadcast', { event: 'lobby-update' }, () => {
-        // Only fetch if game state is missing
-        if (!gameState) {
-          fetchGameState();
-        }
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setConnectionStatus('connected');
-          // Don't fetch here - already fetched on mount
-        } else if (status === 'CHANNEL_ERROR') {
-          setConnectionStatus('disconnected');
-          console.error('[Supabase Realtime] Channel error');
-        } else if (status === 'TIMED_OUT') {
-          setConnectionStatus('disconnected');
-          console.error('[Supabase Realtime] Connection timed out');
-        } else {
-          setConnectionStatus('connecting');
-        }
-      });
+    // Poll for game state updates every 2 seconds
+    const pollInterval = setInterval(() => {
+      fetchGameState();
+    }, 2000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
-  }, [gameId]); // Removed fetchGameState dependency to prevent re-subscription
+  }, [gameId, fetchGameState]);
 
   const handleStartGame = useCallback(async () => {
     if (!gameConfig) return;
@@ -170,36 +126,9 @@ export default function LobbyPage() {
     };
 
     loadConfig();
-    // Initial fetch on mount - Supabase Realtime will handle all subsequent real-time updates
+    // Initial fetch on mount - HTTP polling will handle all subsequent updates
     fetchGameState();
-    
-    // Minimal fallback polling only if Supabase Realtime connection fails
-    // This is a safety net, not the primary update mechanism
-    let fallbackInterval: NodeJS.Timeout | null = null;
-    
-    // Only start fallback polling if connection is not connected after 5 seconds
-    const fallbackTimer = setTimeout(() => {
-      if (connectionStatus !== 'connected') {
-        console.log('Supabase Realtime not connected, starting fallback polling');
-        fallbackInterval = setInterval(() => {
-          fetchGameState();
-        }, 5000); // Poll every 5 seconds as fallback
-      }
-    }, 5000);
-    
-    // Stop fallback polling if connection is established
-    if (connectionStatus === 'connected' && fallbackInterval) {
-      clearInterval(fallbackInterval);
-      fallbackInterval = null;
-    }
-    
-    return () => {
-      clearTimeout(fallbackTimer);
-      if (fallbackInterval) {
-        clearInterval(fallbackInterval);
-      }
-    };
-  }, [gameId, fetchGameState, connectionStatus]);
+  }, [gameId, fetchGameState]);
 
   // Track if we've attempted to start the game to prevent multiple starts
   const [hasAttemptedStart, setHasAttemptedStart] = useState(false);

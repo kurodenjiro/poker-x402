@@ -49,18 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Broadcast game state update via Supabase Realtime
-    try {
-      const { supabase } = await import('@/lib/supabase/server');
-      const channel = supabase.channel(`game-${gameId}`);
-      await channel.send({
-        type: 'broadcast',
-        event: 'game-state',
-        payload: gameData,
-      });
-    } catch (error) {
-      console.error('Error broadcasting game state:', error);
-    }
+    // HTTP polling will handle updates - no broadcast needed
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
