@@ -1,6 +1,9 @@
 [variables]
 NODE_VERSION = "20"
 
+[phases.setup]
+nixPkgs = ["python3", "nodejs"]
+
 [phases.install]
 cmds = ["npm install"]
 
