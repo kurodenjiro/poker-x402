@@ -3,28 +3,53 @@ const path = require('path');
 
 // Ensure public/idl directory exists (remove any symlinks first)
 const publicIdlDir = path.join(process.cwd(), 'public', 'idl');
-if (fs.existsSync(publicIdlDir)) {
-  // Remove any symlinks in the directory
-  try {
-    const entries = fs.readdirSync(publicIdlDir);
-    for (const entry of entries) {
-      const entryPath = path.join(publicIdlDir, entry);
+
+// Always ensure the directory exists with proper permissions
+try {
+  if (fs.existsSync(publicIdlDir)) {
+    // Check if it's a symlink
+    const stat = fs.lstatSync(publicIdlDir);
+    if (stat.isSymbolicLink()) {
+      // Remove symlink and create real directory
+      fs.unlinkSync(publicIdlDir);
+      fs.mkdirSync(publicIdlDir, { recursive: true, mode: 0o755 });
+      console.log('Removed symlink and created directory:', publicIdlDir);
+    } else {
+      // Remove any symlinks inside the directory
       try {
-        const stat = fs.lstatSync(entryPath);
-        if (stat.isSymbolicLink()) {
-          fs.unlinkSync(entryPath);
-          console.log(`Removed symlink: ${entryPath}`);
+        const entries = fs.readdirSync(publicIdlDir);
+        for (const entry of entries) {
+          const entryPath = path.join(publicIdlDir, entry);
+          try {
+            const entryStat = fs.lstatSync(entryPath);
+            if (entryStat.isSymbolicLink()) {
+              fs.unlinkSync(entryPath);
+              console.log(`Removed symlink: ${entryPath}`);
+            }
+          } catch (err) {
+            // Ignore errors
+          }
         }
       } catch (err) {
-        // Ignore errors
+        // If can't read, recreate directory
+        fs.rmSync(publicIdlDir, { recursive: true, force: true });
+        fs.mkdirSync(publicIdlDir, { recursive: true, mode: 0o755 });
       }
     }
-  } catch (err) {
-    // If directory doesn't exist or can't be read, create it
-    fs.mkdirSync(publicIdlDir, { recursive: true });
+  } else {
+    // Create directory with proper permissions
+    fs.mkdirSync(publicIdlDir, { recursive: true, mode: 0o755 });
+    console.log('Created directory:', publicIdlDir);
   }
-} else {
-  fs.mkdirSync(publicIdlDir, { recursive: true });
+} catch (err) {
+  console.error('Error setting up public/idl directory:', err);
+  // Try one more time with force
+  try {
+    fs.mkdirSync(publicIdlDir, { recursive: true, mode: 0o755 });
+  } catch (finalErr) {
+    console.error('Failed to create directory:', finalErr);
+    process.exit(1);
+  }
 }
 
 // Copy IDL file from contracts/target/idl to public/idl

@@ -1,0 +1,3 @@
+# This file ensures the idl directory exists in git
+# The IDL file will be copied here during the build process
+
