@@ -5,7 +5,7 @@ NODE_VERSION = "20"
 nixPkgs = ["python3", "nodejs", "gcc", "make"]
 
 [phases.install]
-cmds = ["export PYTHON=$(which python3) && npm config set python $(which python3) && npm install"]
+cmds = ["npm config set python python3", "PYTHON=$(which python3) npm install"]
 
 [phases.build]
 cmds = ["npm run prebuild", "npm run build"]
