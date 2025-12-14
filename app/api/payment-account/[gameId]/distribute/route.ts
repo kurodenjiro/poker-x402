@@ -48,36 +48,7 @@ export async function POST(
       totalAmountUSD
     );
 
-    // Create lobby on Solana smart contract (moved here as per user request)
-    try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      console.log(`[Distribute] Creating on-chain lobby for ${gameId}...`);
-
-      const response = await fetch(`${appUrl}/api/betting/create-lobby`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gameId,
-          config: {
-            modelNames: config.modelNames,
-            startingChips: config.startingChips || 1000,
-            smallBlind: config.smallBlind || 10,
-            bigBlind: config.bigBlind || 20,
-            maxHands: config.maxHands || 10,
-          },
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ [Distribute] Betting lobby created on-chain:', data.transaction);
-      } else {
-        const errData = await response.json().catch(() => ({}));
-        console.warn('⚠️ [Distribute] Failed to create lobby via API:', response.status, errData);
-      }
-    } catch (error) {
-      console.error('Error creating betting lobby from distribute (non-fatal):', error);
-    }
+    // On-chain betting lobby creation removed as requested
 
     return NextResponse.json({
       success: true,

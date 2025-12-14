@@ -114,6 +114,12 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
   };
 
   const processPayment = async () => {
+    // Prevent double-click / multiple simultaneous payments
+    if (isProcessing) {
+      console.warn('[Paywall] Payment already in progress, ignoring duplicate click');
+      return;
+    }
+
     if (!walletAddress) {
       setError('Please connect your wallet first');
       return;
@@ -536,7 +542,7 @@ export default function Paywall({ isOpen, onClose, onPaymentSuccess, amount, chi
               <Button
                 onClick={processPayment}
                 disabled={isProcessing || isLoadingPrice || solAmount === null}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-lg font-semibold disabled:opacity-50"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
                   <span className="flex items-center justify-center gap-2">
