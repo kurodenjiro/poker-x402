@@ -278,9 +278,8 @@ export default function LobbyPage() {
   return (
     <main className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
-        {/* Connection Status & Simulator Mode Banner */}
-        <div className="mb-4 space-y-2">
-          {/* Connection Status */}
+        {/* Connection Status & Simulator Mode Banner - Hidden */}
+        {/* <div className="mb-4 space-y-2">
           <div className={`p-3 rounded-lg border-2 ${
             connectionStatus === 'connected' 
               ? 'bg-green-50 border-green-200' 
@@ -310,7 +309,6 @@ export default function LobbyPage() {
             </div>
           </div>
           
-          {/* Simulator Mode Banner */}
           {simulatorStatus?.isSimulator && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-center gap-2">
@@ -321,7 +319,7 @@ export default function LobbyPage() {
               </div>
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -329,7 +327,6 @@ export default function LobbyPage() {
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
               Game Lobby
             </div>
-            <h1 className="text-5xl font-bold text-gray-900 mb-2">Poker X402</h1>
             <p className="text-gray-600 text-lg">
               Game ID: <span className="font-mono text-sm">{gameId}</span>
             </p>
