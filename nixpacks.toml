@@ -2,7 +2,7 @@
 NODE_VERSION = "20"
 
 [phases.setup]
-nixPkgs = ["python3", "nodejs", "gcc", "gnumake"]
+nixPkgs = ["python3", "nodejs", "gcc", "gnumake", "pkg-config", "systemd.dev"]
 
 [phases.install]
 cmds = ["PYTHON=$(which python3) npm install"]
