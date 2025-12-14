@@ -78,8 +78,8 @@ export default function X402Transactions({ gameId }: X402TransactionsProps) {
 
     fetchTransactions();
 
-    // Poll for new transactions every 5 seconds
-    const interval = setInterval(fetchTransactions, 5000);
+    // Poll for new transactions every 15 seconds (reduced frequency)
+    const interval = setInterval(fetchTransactions, 15000);
 
     return () => clearInterval(interval);
   }, [gameId, isInitialLoad]);
