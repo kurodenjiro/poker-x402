@@ -14,14 +14,14 @@ import { cn } from '@/lib/utils';
 import AnimatedChips from '@/components/AnimatedChips';
 
 // Component for flying pot distribution animation (pot to player)
-function PotDistributionAnimation({ 
-  playerId, 
-  amount, 
-  playerCardRef, 
-  potRef 
-}: { 
-  playerId: string; 
-  amount: number; 
+function PotDistributionAnimation({
+  playerId,
+  amount,
+  playerCardRef,
+  potRef
+}: {
+  playerId: string;
+  amount: number;
   playerCardRef: HTMLDivElement | undefined;
   potRef: HTMLDivElement | null;
 }) {
@@ -36,7 +36,7 @@ function PotDistributionAnimation({
     // Retry mechanism - try multiple times if refs aren't ready
     let attempts = 0;
     const maxAttempts = 10;
-    
+
     const tryCalculatePositions = () => {
       attempts++;
       try {
@@ -49,19 +49,19 @@ function PotDistributionAnimation({
 
         const startRect = potRef.getBoundingClientRect(); // Start from pot
         const endRect = playerCardRef.getBoundingClientRect(); // End at player
-        
+
         if (startRect.width === 0 || startRect.height === 0 || endRect.width === 0 || endRect.height === 0) {
           if (attempts < maxAttempts) {
             setTimeout(tryCalculatePositions, 50);
           }
           return;
         }
-        
+
         const startX = startRect.left + startRect.width / 2;
         const startY = startRect.top + startRect.height / 2;
         const endX = endRect.left + endRect.width / 2;
         const endY = endRect.top + endRect.height / 2;
-        
+
         setPositions({ startX, startY, endX, endY });
       } catch (error) {
         console.error('[Pot Distribution] ❌ Error calculating positions (attempt', attempts, '):', error);
@@ -79,43 +79,43 @@ function PotDistributionAnimation({
     if (!animationRef.current || !positions) {
       return;
     }
-    
+
     const element = animationRef.current;
     const deltaX = positions.endX - positions.startX;
     const deltaY = positions.endY - positions.startY;
     let startTime: number | null = null;
     const duration = 2000; // 2 seconds
-    
+
     element.style.display = 'block';
     element.style.visibility = 'visible';
     element.style.opacity = '1';
     element.style.zIndex = '99999';
     element.style.pointerEvents = 'none';
     element.style.position = 'fixed';
-    
+
     const animate = (currentTime: number) => {
       if (startTime === null) {
         startTime = currentTime;
       }
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       const easeOut = 1 - Math.pow(1 - progress, 3);
       const currentX = positions.startX + deltaX * easeOut;
       const currentY = positions.startY + deltaY * easeOut - (80 * Math.sin(progress * Math.PI));
       const scale = 1 + (0.3 * Math.sin(progress * Math.PI));
       const opacity = Math.max(0, 1 - progress * 0.7);
-      
+
       element.style.left = `${currentX}px`;
       element.style.top = `${currentY}px`;
       element.style.transform = `translate(-50%, -50%) scale(${scale})`;
       element.style.opacity = `${opacity}`;
-      
+
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
     };
-    
+
     requestAnimationFrame(animate);
   }, [positions, playerId, amount]);
 
@@ -137,7 +137,7 @@ function PotDistributionAnimation({
         opacity: 1,
       }}
     >
-      <div 
+      <div
         className="bg-gradient-to-r from-green-500 to-green-700 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap"
         style={{
           filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
@@ -151,14 +151,14 @@ function PotDistributionAnimation({
 }
 
 // Component for flying bet animation
-function BetFlyAnimation({ 
-  playerId, 
-  amount, 
-  playerCardRef, 
-  potRef 
-}: { 
-  playerId: string; 
-  amount: number; 
+function BetFlyAnimation({
+  playerId,
+  amount,
+  playerCardRef,
+  potRef
+}: {
+  playerId: string;
+  amount: number;
   playerCardRef: HTMLDivElement | undefined;
   potRef: HTMLDivElement | null;
 }) {
@@ -166,14 +166,14 @@ function BetFlyAnimation({
   const animationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-      if (!playerCardRef || !potRef) {
-        return;
-      }
+    if (!playerCardRef || !potRef) {
+      return;
+    }
 
     // Retry mechanism - try multiple times if refs aren't ready
     let attempts = 0;
     const maxAttempts = 10;
-    
+
     const tryCalculatePositions = () => {
       attempts++;
       try {
@@ -186,7 +186,7 @@ function BetFlyAnimation({
 
         const startRect = playerCardRef.getBoundingClientRect();
         const endRect = potRef.getBoundingClientRect();
-        
+
         // Check if elements are actually visible
         if (startRect.width === 0 || startRect.height === 0 || endRect.width === 0 || endRect.height === 0) {
           if (attempts < maxAttempts) {
@@ -194,12 +194,12 @@ function BetFlyAnimation({
           }
           return;
         }
-        
+
         const startX = startRect.left + startRect.width / 2;
         const startY = startRect.top + startRect.height / 2;
         const endX = endRect.left + endRect.width / 2;
         const endY = endRect.top + endRect.height / 2;
-        
+
         setPositions({ startX, startY, endX, endY });
       } catch (error) {
         console.error('[Bet Animation] ❌ Error calculating positions (attempt', attempts, '):', error);
@@ -221,14 +221,14 @@ function BetFlyAnimation({
     if (!animationRef.current || !positions) {
       return;
     }
-    
-    
+
+
     const element = animationRef.current;
     const deltaX = positions.endX - positions.startX;
     const deltaY = positions.endY - positions.startY;
     let startTime: number | null = null;
     const duration = 1500; // 1.5 seconds
-    
+
     // Make sure element is visible and on top
     element.style.display = 'block';
     element.style.visibility = 'visible';
@@ -236,33 +236,33 @@ function BetFlyAnimation({
     element.style.zIndex = '99999';
     element.style.pointerEvents = 'none';
     element.style.position = 'fixed';
-    
+
     const animate = (currentTime: number) => {
       if (startTime === null) {
         startTime = currentTime;
       }
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Easing function (ease-out)
       const easeOut = 1 - Math.pow(1 - progress, 3);
-      
+
       // Calculate current position with arc (slight upward curve)
       const currentX = positions.startX + deltaX * easeOut;
       const currentY = positions.startY + deltaY * easeOut - (50 * Math.sin(progress * Math.PI)); // Arc effect
       const scale = 1 + (0.2 * Math.sin(progress * Math.PI)); // Scale up then down
       const opacity = Math.max(0, 1 - progress * 0.8); // Fade out but keep some opacity longer
-      
+
       element.style.left = `${currentX}px`;
       element.style.top = `${currentY}px`;
       element.style.transform = `translate(-50%, -50%) scale(${scale})`;
       element.style.opacity = `${opacity}`;
-      
+
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
     };
-    
+
     requestAnimationFrame(animate);
   }, [positions, playerId, amount]);
 
@@ -285,7 +285,7 @@ function BetFlyAnimation({
         opacity: 1,
       }}
     >
-      <div 
+      <div
         className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold text-xl px-4 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 whitespace-nowrap"
         style={{
           filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
@@ -340,11 +340,11 @@ const HAND_RANK_COLORS: Record<number, string> = {
 function getHandInfo(playerHand: any[], communityCards: any[]): { rank: number; name: string } | null {
   if (playerHand.length < 2) return null;
   if (communityCards.length < 3) return null;
-  
+
   try {
     const allCards = [...playerHand, ...communityCards];
     if (allCards.length < 5) return null;
-    
+
     const evaluation = evaluateHand(allCards);
     return HAND_RANK_MAP[evaluation.rank];
   } catch (error) {
@@ -366,17 +366,17 @@ interface GameBoardProps {
 export default function GameBoard({ gameState, stats, rankings, isRunning, chatMessages = [], isChatHidden = false, gameTime = 0, gameId }: GameBoardProps) {
   const router = useRouter();
   const [showSummaryModal, setShowSummaryModal] = useState(false);
-  
+
   // Track previous stats to detect wins/losses
   const prevStatsRef = useRef<Map<string, { handsWon: number; handsPlayed: number; totalChips: number }>>(new Map());
   const [winLossAnimations, setWinLossAnimations] = useState<Map<string, { type: 'win' | 'loss'; profit: number } | null>>(new Map());
-  
+
   // Track previous chip values for animation
   const prevChipsRef = useRef<Map<string, number>>(new Map());
   const [chipAnimations, setChipAnimations] = useState<Map<string, { from: number; to: number; isAnimating: boolean }>>(new Map());
   // Track displayed chip values (may be delayed during win/loss animations)
   const [displayedChips, setDisplayedChips] = useState<Map<string, number>>(new Map());
-  
+
   // Track bet animations - flying chips from player to pot
   const prevBetRef = useRef<Map<string, number>>(new Map());
   const prevPotRef = useRef<number>(0);
@@ -392,15 +392,15 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     }
 
     const newAnimations = new Map<string, { type: 'win' | 'loss'; profit: number }>();
-    
+
     stats.forEach(stat => {
       const prevStat = prevStatsRef.current.get(stat.modelId);
-      
+
       if (prevStat) {
         const profitChange = stat.totalChips - prevStat.totalChips;
         const handsPlayedChanged = stat.handsPlayed > prevStat.handsPlayed;
         const handsWonChanged = stat.handsWon > prevStat.handsWon;
-        
+
         // Only trigger animations when a hand has completed (handsPlayed increased)
         if (handsPlayedChanged) {
           // Win: handsWon increased (player won the hand)
@@ -425,7 +425,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
           }
         }
       }
-      
+
       // Update previous stats
       prevStatsRef.current.set(stat.modelId, {
         handsWon: stat.handsWon,
@@ -442,7 +442,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
         });
         return updated;
       });
-      
+
       // Clear animations after 5 seconds
       setTimeout(() => {
         setWinLossAnimations(prev => {
@@ -479,28 +479,28 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
       }
       if (phaseChangedToFinished) {
       }
-      
+
       // Find players whose chips increased (winners)
       gameState.players.forEach(player => {
         const prevChips = prevChipsForPotDistRef.current.get(player.id);
         const currentChips = player.chips || 0;
-        
+
         // If we don't have previous chips, use current chips as baseline
         const baselineChips = prevChips !== undefined ? prevChips : currentChips;
         const chipIncrease = currentChips - baselineChips;
-        
-        
+
+
         // If chips increased and (pot decreased OR phase finished), this player won
         if (chipIncrease > 0 && (potDecrease > 0 || phaseChangedToFinished)) {
           // Calculate the actual winnings (use pot decrease if available, otherwise chip increase)
           const winnings = potDecrease > 0 ? Math.min(chipIncrease, potDecrease) : chipIncrease;
-          
+
           setPotDistributionAnimations(prev => {
             const updated = new Map(prev);
             updated.set(player.id, { amount: winnings, isAnimating: true });
             return updated;
           });
-          
+
           // Clear animation after it completes (2.5 seconds)
           setTimeout(() => {
             setPotDistributionAnimations(prev => {
@@ -510,7 +510,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             });
           }, 2500);
         }
-        
+
         // Update previous chips
         prevChipsForPotDistRef.current.set(player.id, currentChips);
       });
@@ -521,7 +521,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
         prevChipsForPotDistRef.current.set(player.id, currentChips);
       });
     }
-    
+
     // Update previous phase
     prevPhaseRef.current = currentPhase;
   }, [gameState]);
@@ -534,15 +534,15 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     const currentPot = gameState.pot || 0;
     const prevPot = prevPotRef.current;
     const potIncrease = currentPot - prevPot;
-    
+
 
     // If pot increased, find which player(s) contributed
     if (potIncrease > 0) {
       gameState.players.forEach(player => {
         const prevTotalBet = prevBetRef.current.get(player.id) || 0;
         const currentTotalBet = player.totalBetThisRound || 0;
-        
-        
+
+
         // If player's total bet this round increased, create animation
         if (currentTotalBet > prevTotalBet) {
           const betIncrease = currentTotalBet - prevTotalBet;
@@ -552,7 +552,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               updated.set(player.id, { amount: betIncrease, isAnimating: true });
               return updated;
             });
-            
+
             // Clear animation after it completes (2.5 seconds - longer to ensure animation finishes)
             setTimeout(() => {
               setBetAnimations(prev => {
@@ -563,7 +563,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             }, 2500);
           }
         }
-        
+
         // Update previous total bet
         prevBetRef.current.set(player.id, currentTotalBet);
       });
@@ -574,7 +574,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
         prevBetRef.current.set(player.id, currentTotalBet);
       });
     }
-    
+
     // Update previous pot AFTER checking for pot distribution
     prevPotRef.current = currentPot;
   }, [gameState]);
@@ -585,15 +585,15 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     if (!gameState || !gameState.players) return;
 
     const newChipAnimations = new Map<string, { from: number; to: number; isAnimating: boolean }>();
-    
+
     gameState.players.forEach(player => {
       const prevChips = prevChipsRef.current.get(player.id);
       const currentChips = player.chips;
-      
+
       // Find the player's model stat to check for win/loss animation
       const modelStat = rankings.find(r => r.modelName === player.name);
       const hasWinLossAnimation = modelStat && winLossAnimations.has(modelStat.modelId);
-      
+
       if (prevChips !== undefined && prevChips !== currentChips) {
         if (hasWinLossAnimation) {
           // Delay chip update until win/loss animation completes (4 seconds)
@@ -603,7 +603,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             updated.set(player.id, prevChips); // Show old value
             return updated;
           });
-          
+
           // Schedule chip animation to start after win/loss animation
           setTimeout(() => {
             setChipAnimations(prev => {
@@ -615,14 +615,14 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               });
               return updated;
             });
-            
+
             // Update displayed chips to trigger animation
             setDisplayedChips(prev => {
               const updated = new Map(prev);
               updated.set(player.id, currentChips);
               return updated;
             });
-            
+
             // Clear animation after it completes
             setTimeout(() => {
               setChipAnimations(prev => {
@@ -634,7 +634,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 return updated;
               });
             }, 1500); // Chip animation duration
-            
+
             // Update previous chips after animation starts
             prevChipsRef.current.set(player.id, currentChips);
           }, 4000); // Wait for win/loss animation to complete
@@ -645,14 +645,14 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
             to: currentChips,
             isAnimating: true,
           });
-          
+
           // Update displayed chips immediately
           setDisplayedChips(prev => {
             const updated = new Map(prev);
             updated.set(player.id, currentChips);
             return updated;
           });
-          
+
           // Clear animation after it completes
           setTimeout(() => {
             setChipAnimations(prev => {
@@ -664,7 +664,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               return updated;
             });
           }, 1500); // Animation duration
-          
+
           // Update previous chips
           prevChipsRef.current.set(player.id, currentChips);
         }
@@ -711,7 +711,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
 
   const activePlayers = gameState.players.filter(p => p.isActive && p.chips > 0);
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  
+
   // Find the player with the most chips
   const maxChips = Math.max(...gameState.players.map(p => p.chips || 0));
   const playerWithMostChips = gameState.players.find(p => p.chips === maxChips);
@@ -742,12 +742,12 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
   // Match colors for cards that are part of the same match group
   const cardMatchColors = new Map<string, string>();
   const matchGroups: Array<{ cards: Array<{ card: any; source: 'community' | string }> }> = [];
-  
+
   if (gameState.communityCards.length >= 3) {
     // Find all matching cards (same rank or suit)
     const allCards: Array<{ card: any; source: 'community' | string }> = [
       ...gameState.communityCards.map(c => ({ card: c, source: 'community' as const })),
-      ...gameState.players.flatMap(p => 
+      ...gameState.players.flatMap(p =>
         p.hand.map(c => ({ card: c, source: p.id }))
       )
     ];
@@ -783,7 +783,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     ];
 
     let colorIndex = 0;
-    
+
     // Assign colors to rank matches (only if 2+ cards match)
     rankGroups.forEach((cards) => {
       if (cards.length >= 2) {
@@ -812,101 +812,99 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
     });
   }
 
+  // Helper function to calculate player position around the table
+  const getPlayerPosition = (index: number, total: number) => {
+    const angle = ((360 / total) * index - 90) * (Math.PI / 180); // Start from top
+    const radius = 40; // Percentage from center
+    return {
+      left: `${50 + Math.cos(angle) * radius}%`,
+      top: `${50 + Math.sin(angle) * radius}%`,
+    };
+  };
+
   return (
     <div className="space-y-6">
-      {/* Community Cards with Phase and Hand */}
-      <div className="mb-8">
-        <Card className="px-8 py-6 bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 shadow-lg">
-          {/* Phase - Community Cards - Hand in one line */}
-          <div className="flex items-center justify-center gap-3 mb-4 text-center">
-            <span className="text-lg font-bold text-blue-800 uppercase tracking-wide">
-              {gameState.phase.replace('-', ' ')}
-            </span>
-            <span className="text-gray-500">-</span>
-            <span className="text-sm font-semibold text-yellow-700 uppercase tracking-wider">Community Cards</span>
-            <span className="text-gray-500">-</span>
-            <span className="text-lg font-bold text-purple-800">
-              #{gameState.round}
-            </span>
-            {gameTime > 0 && (
-              <>
-                <span className="text-gray-500">-</span>
-                <span className="text-sm font-mono font-semibold text-purple-600">
-                  {gameTime.toFixed(1)}s
+      {/* Circular Poker Table */}
+      <div className="relative w-full" style={{ paddingBottom: '75%', minHeight: '600px' }}>
+        <div
+          className="absolute inset-0 rounded-[50%] border-8 border-amber-800 shadow-2xl overflow-visible"
+          style={{
+            background: 'radial-gradient(ellipse at center, #1a5f3c 0%, #0d3b24 70%, #092a1a 100%)',
+            boxShadow: 'inset 0 0 100px rgba(0,0,0,0.5), 0 10px 40px rgba(0,0,0,0.5)',
+          }}
+        >
+          {/* Table rim/edge effect */}
+          <div className="absolute inset-2 rounded-[50%] border-4 border-amber-900/30" />
+
+          {/* Center Area - Community Cards & Pot */}
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+            <div className="flex flex-col items-center gap-4">
+              {/* Phase & Round Info */}
+              <div className="flex items-center gap-2 bg-black/40 backdrop-blur-sm rounded-full px-4 py-1.5">
+                <span className="text-sm font-bold text-white uppercase tracking-wide">
+                  {gameState.phase.replace('-', ' ')}
                 </span>
-              </>
-            )}
-          </div>
-          
-          {/* Community Cards */}
-          <div className="flex gap-3 justify-center items-center min-h-[120px]">
-            {gameState.communityCards.length > 0 ? (
-              gameState.communityCards.map((card, index) => {
-                const cardKey = `${card.rank}-${card.suit}-community`;
-                const matchColor = cardMatchColors.get(cardKey);
-                return (
-                  <CardComponent 
-                    key={index} 
-                    card={card} 
-                    size="large" 
-                    index={index}
-                    isDealing={isRunning}
-                    matchColor={matchColor}
-                  />
-                );
-              })
-            ) : (
-              <div className="flex gap-3 justify-center">
-                {/* Placeholder cards for visual consistency */}
-                {[0, 1, 2, 3, 4].map((index) => (
-                  <CardComponent 
-                    key={index} 
-                    card={null} 
-                    isRevealed={false}
-                    size="large" 
-                    index={index}
-                    isDealing={false}
-                  />
-                ))}
+                <span className="text-white/50">•</span>
+                <span className="text-sm font-bold text-yellow-300">#{gameState.round}</span>
+                {gameTime > 0 && (
+                  <>
+                    <span className="text-white/50">•</span>
+                    <span className="text-xs font-mono text-white/80">{gameTime.toFixed(1)}s</span>
+                  </>
+                )}
               </div>
-            )}
-          </div>
-          
-          {/* Pot - Below Community Cards */}
-          <div className="flex items-center justify-center mt-4">
-            <Card ref={potRef} className="px-6 py-4 bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 shadow-lg relative">
-              <div className="text-center">
-                <div className="text-xs font-semibold text-green-700 mb-1 uppercase tracking-wider">Pot</div>
-                <div className="text-3xl font-bold text-green-800">${gameState.pot}</div>
+
+              {/* Community Cards */}
+              <div className="flex gap-2 justify-center items-center">
+                {gameState.communityCards.length > 0 ? (
+                  gameState.communityCards.map((card, index) => {
+                    const cardKey = `${card.rank}-${card.suit}-community`;
+                    const matchColor = cardMatchColors.get(cardKey);
+                    return (
+                      <CardComponent
+                        key={index}
+                        card={card}
+                        size="large"
+                        index={index}
+                        isDealing={isRunning}
+                        matchColor={matchColor}
+                      />
+                    );
+                  })
+                ) : (
+                  <div className="flex gap-2 justify-center">
+                    {[0, 1, 2, 3, 4].map((index) => (
+                      <CardComponent
+                        key={index}
+                        card={null}
+                        isRevealed={false}
+                        size="large"
+                        index={index}
+                        isDealing={false}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            </Card>
+
+              {/* Pot */}
+              <Card ref={potRef} className="px-5 py-3 bg-gradient-to-br from-green-600 to-green-800 border-2 border-green-400 shadow-lg">
+                <div className="text-center">
+                  <div className="text-xs font-semibold text-green-200 uppercase tracking-wider">Pot</div>
+                  <div className="text-2xl font-bold text-white">${gameState.pot}</div>
+                </div>
+              </Card>
+            </div>
           </div>
-          
-          {/* Flying Bet Animations - Chips flying from players to pot */}
+
+          {/* Flying Bet Animations */}
           {Array.from(betAnimations.entries()).map(([playerId, anim]) => {
-            if (!anim.isAnimating) {
-              return null;
-            }
+            if (!anim.isAnimating) return null;
             const player = gameState.players.find(p => p.id === playerId);
-            if (!player) {
-              return null;
-            }
-            
+            if (!player) return null;
             const playerCard = playerCardRefs.current.get(playerId);
             const pot = potRef.current;
-            
-            // Wait for refs to be available - retry if not ready
-            if (!playerCard || !pot) {
-              // Retry after a short delay
-              setTimeout(() => {
-                const retryPlayerCard = playerCardRefs.current.get(playerId);
-                const retryPot = potRef.current;
-                if (retryPlayerCard && retryPot) {
-                }
-              }, 100);
-              return null;
-            }
-            
+            if (!playerCard || !pot) return null;
             return (
               <BetFlyAnimation
                 key={`bet-fly-${playerId}-${anim.amount}`}
@@ -917,24 +915,15 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               />
             );
           })}
-          
-          {/* Pot Distribution Animations - Chips flying from pot to winning players */}
+
+          {/* Pot Distribution Animations */}
           {Array.from(potDistributionAnimations.entries()).map(([playerId, anim]) => {
-            if (!anim.isAnimating) {
-              return null;
-            }
+            if (!anim.isAnimating) return null;
             const player = gameState.players.find(p => p.id === playerId);
-            if (!player) {
-              return null;
-            }
-            
+            if (!player) return null;
             const playerCard = playerCardRefs.current.get(playerId);
             const pot = potRef.current;
-            
-            if (!playerCard || !pot) {
-              return null;
-            }
-            
+            if (!playerCard || !pot) return null;
             return (
               <PotDistributionAnimation
                 key={`pot-dist-${playerId}-${anim.amount}`}
@@ -945,404 +934,399 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
               />
             );
           })}
-        </Card>
-      </div>
 
-      {/* Model Panels - Vertical Layout like Wordle */}
-      <div className={cn(
-        "grid gap-4",
-        isChatHidden 
-          ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-4" 
-          : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-      )}>
-        {rankings.map((modelStat, index) => {
-          const player = gameState.players.find(p => p.name === modelStat.modelName);
-          if (!player) return null;
+          {/* Players positioned around the table */}
+          {rankings.map((modelStat, index) => {
+            const player = gameState.players.find(p => p.name === modelStat.modelName);
+            if (!player) return null;
+            const position = getPlayerPosition(index, rankings.length);
 
-          const isCurrentPlayer = player.id === currentPlayer?.id;
-          const rank = index + 1;
-          
-          // Try multiple ways to find animation: by modelId, player.id, or modelName
-          let animationData = winLossAnimations.get(modelStat.modelId) || 
-                              winLossAnimations.get(player.id) ||
-                              winLossAnimations.get(modelStat.modelName);
-          
-          // If still not found, try matching by modelName in stats
-          if (!animationData) {
-            const matchingStat = stats.find(s => s.modelName === modelStat.modelName);
-            if (matchingStat) {
-              animationData = winLossAnimations.get(matchingStat.modelId);
+            const isCurrentPlayer = player.id === currentPlayer?.id;
+            const rank = index + 1;
+
+            // Try multiple ways to find animation: by modelId, player.id, or modelName
+            let animationData = winLossAnimations.get(modelStat.modelId) ||
+              winLossAnimations.get(player.id) ||
+              winLossAnimations.get(modelStat.modelName);
+
+            // If still not found, try matching by modelName in stats
+            if (!animationData) {
+              const matchingStat = stats.find(s => s.modelName === modelStat.modelName);
+              if (matchingStat) {
+                animationData = winLossAnimations.get(matchingStat.modelId);
+              }
             }
-          }
-          
-          // Also try all keys in winLossAnimations to see if any match
-          if (!animationData && winLossAnimations.size > 0) {
-            winLossAnimations.forEach((value, key) => {
-              if (!animationData && (key === modelStat.modelId || 
-                  key === player.id || 
+
+            // Also try all keys in winLossAnimations to see if any match
+            if (!animationData && winLossAnimations.size > 0) {
+              winLossAnimations.forEach((value, key) => {
+                if (!animationData && (key === modelStat.modelId ||
+                  key === player.id ||
                   key === modelStat.modelName ||
                   key === player.name)) {
-                animationData = value;
-              }
-            });
-          }
-          
-          const animationState = animationData?.type || null;
-          const profitAmount = animationData?.profit || 0;
-          
-          
-          // Get player's hand rank for color matching
-          const playerHandRank = handRankMap.get(player.id);
-          const sameRankPlayers = playerHandRank ? rankGroups.get(playerHandRank) || [] : [];
-          const hasHandMatch = sameRankPlayers.length > 1;
-          
-          // Get only the most recent message for this player (exclude thinking/observing messages)
-          const playerRecentMessages = chatMessages
-            .filter(m => m.modelName === modelStat.modelName && 
-              m.action !== 'observe' &&
-              m.action !== 'system' &&
-              !m.decision?.toLowerCase().includes('observing') &&
-              !m.decision?.toLowerCase().includes('thinking') &&
-              (m.strategy || m.reasoning || (m.decision && m.role === 'assistant')))
-            .slice(-1);
-          
-          // Get only the most recent message from other players mentioning this player (exclude thinking/observing)
-          const otherPlayerMessages = chatMessages
-            .filter(m => m.modelName !== modelStat.modelName && 
-              m.action !== 'observe' &&
-              m.action !== 'system' &&
-              !m.decision?.toLowerCase().includes('observing') &&
-              !m.decision?.toLowerCase().includes('thinking') &&
-              m.strategy && 
-              m.strategy.toLowerCase().includes(modelStat.modelName.toLowerCase()))
-            .slice(-1);
-
-          // Get the most recent relevant message (prioritize player's own message)
-          const latestMessage = playerRecentMessages[0] || otherPlayerMessages[0];
-          
-          // Hide messenger when current player is still thinking
-          const isThinking = isCurrentPlayer && gameState.phase !== 'finished' && isRunning;
-          const shouldShowMessenger = latestMessage && !isThinking;
-
-          return (
-            <div 
-              key={modelStat.modelId} 
-              className="relative"
-              ref={(el) => {
-                if (el && player) {
-                  playerCardRefs.current.set(player.id, el);
+                  animationData = value;
                 }
-              }}
-            >
-              <Card
-                className={cn(
-                  'p-6 bg-gradient-to-br from-white to-green-50/30 border-2 transition-all rounded-xl shadow-md hover:shadow-lg relative',
-                  // Remove overflow-hidden when animation is active to allow animation to show
-                  !animationState && 'overflow-hidden',
-                  isCurrentPlayer
-                    ? 'border-green-500 shadow-xl ring-4 ring-green-200/50 scale-105'
-                    : 'border-green-200 hover:border-green-300',
-                  playerWithMostChips && player.id === playerWithMostChips.id && 'ring-2 ring-yellow-400 border-yellow-300',
-                  animationState === 'win' && 'animate-win-celebration ring-4 ring-green-400',
-                  animationState === 'loss' && 'animate-loss-shake ring-4 ring-red-400',
-                  player.chips <= 0 && 'opacity-40 transition-opacity duration-500'
-                )}
-                style={{
-                  // Ensure overflow is visible when animation is active
-                  overflow: animationState ? 'visible' : undefined,
-                  position: 'relative',
-                  zIndex: animationState ? 10 : undefined,
+              });
+            }
+
+            const animationState = animationData?.type || null;
+            const profitAmount = animationData?.profit || 0;
+
+
+            // Get player's hand rank for color matching
+            const playerHandRank = handRankMap.get(player.id);
+            const sameRankPlayers = playerHandRank ? rankGroups.get(playerHandRank) || [] : [];
+            const hasHandMatch = sameRankPlayers.length > 1;
+
+            // Get only the most recent message for this player (exclude thinking/observing messages)
+            const playerRecentMessages = chatMessages
+              .filter(m => m.modelName === modelStat.modelName &&
+                m.action !== 'observe' &&
+                m.action !== 'system' &&
+                !m.decision?.toLowerCase().includes('observing') &&
+                !m.decision?.toLowerCase().includes('thinking') &&
+                (m.strategy || m.reasoning || (m.decision && m.role === 'assistant')))
+              .slice(-1);
+
+            // Get only the most recent message from other players mentioning this player (exclude thinking/observing)
+            const otherPlayerMessages = chatMessages
+              .filter(m => m.modelName !== modelStat.modelName &&
+                m.action !== 'observe' &&
+                m.action !== 'system' &&
+                !m.decision?.toLowerCase().includes('observing') &&
+                !m.decision?.toLowerCase().includes('thinking') &&
+                m.strategy &&
+                m.strategy.toLowerCase().includes(modelStat.modelName.toLowerCase()))
+              .slice(-1);
+
+            // Get the most recent relevant message (prioritize player's own message)
+            const latestMessage = playerRecentMessages[0] || otherPlayerMessages[0];
+
+            // Hide messenger when current player is still thinking
+            const isThinking = isCurrentPlayer && gameState.phase !== 'finished' && isRunning;
+            const shouldShowMessenger = latestMessage && !isThinking;
+
+            return (
+              <div
+                key={modelStat.modelId}
+                className="absolute w-64 transform -translate-x-1/2 -translate-y-1/2"
+                style={{ left: position.left, top: position.top, zIndex: animationState ? 20 : 5 }}
+                ref={(el) => {
+                  if (el && player) {
+                    playerCardRefs.current.set(player.id, el);
+                  }
                 }}
               >
-              {/* Messenger Balloon - Inside Card */}
-              {shouldShowMessenger && (
-                <div className="mb-4">
-                  {playerRecentMessages.length > 0 ? (
-                    // Show player's own latest message
-                    <div
-                      className={cn(
-                        "relative bg-gradient-to-br from-white to-gray-50 border-2 border-gray-300 rounded-2xl shadow-lg p-3 text-xs w-full",
-                        latestMessage.emoji && "animate-pulse",
-                        "animate-fade-in"
-                      )}
-                    >
-                      <div className="flex items-start gap-2">
-                        {latestMessage.emoji && (
-                          <span className="text-lg flex-shrink-0">{latestMessage.emoji}</span>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          {latestMessage.strategy && (
-                            <div className="text-gray-900 font-semibold leading-relaxed text-xs">
-                              {latestMessage.strategy}
-                            </div>
-                          )}
-                          {!latestMessage.strategy && latestMessage.reasoning && (
-                            <div className="text-gray-700 italic leading-relaxed text-xs">
-                              "{latestMessage.reasoning}"
-                            </div>
-                          )}
-                          {!latestMessage.strategy && !latestMessage.reasoning && latestMessage.decision && (
-                            <div className="text-gray-900 font-bold text-xs">
-                              {latestMessage.decision}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : otherPlayerMessages.length > 0 ? (
-                    // Show other player's message about this player
-                    <div
-                      className={cn(
-                        "relative bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-2xl shadow-md p-3 text-xs w-full",
-                        "animate-fade-in"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {latestMessage.emoji && (
-                          <span className="text-base">{latestMessage.emoji}</span>
-                        )}
-                        <div className="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
-                          {latestMessage.modelName}
-                        </div>
-                      </div>
-                      <div className="text-gray-800 leading-relaxed font-medium text-xs">
-                        {latestMessage.strategy}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-
-              {/* Win/Loss Animation Overlay */}
-              {animationState === 'win' && (
-                <div 
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none" 
-                  style={{ 
-                    position: 'absolute', 
-                    top: 0, 
-                    left: 0, 
-                    right: 0, 
-                    bottom: 0, 
-                    overflow: 'visible',
-                    zIndex: 10000,
-                    pointerEvents: 'none',
-                    backgroundColor: 'rgba(0, 255, 0, 0.2)' // Temporary: green background to see if overlay renders
+                <Card
+                  className={cn(
+                    'p-6 bg-gradient-to-br from-white to-green-50/30 border-2 transition-all rounded-xl shadow-md hover:shadow-lg relative',
+                    // Remove overflow-hidden when animation is active to allow animation to show
+                    !animationState && 'overflow-hidden',
+                    isCurrentPlayer
+                      ? 'border-green-500 shadow-xl ring-4 ring-green-200/50 scale-105'
+                      : 'border-green-200 hover:border-green-300',
+                    playerWithMostChips && player.id === playerWithMostChips.id && 'ring-2 ring-yellow-400 border-yellow-300',
+                    animationState === 'win' && 'animate-win-celebration ring-4 ring-green-400',
+                    animationState === 'loss' && 'animate-loss-shake ring-4 ring-red-400',
+                    player.chips <= 0 && 'opacity-40 transition-opacity duration-500'
+                  )}
+                  style={{
+                    // Ensure overflow is visible when animation is active
+                    overflow: animationState ? 'visible' : undefined,
+                    position: 'relative',
+                    zIndex: animationState ? 10 : undefined,
                   }}
                 >
-                  {(() => {
-                    return null;
-                  })()}
-                  {/* Celebration Emojis */}
-                  <div className="absolute top-8 left-1/4 text-5xl animate-float-up rotate-12">🎊</div>
-                  <div className="absolute top-6 right-1/4 text-4xl animate-float-up-delayed -rotate-12">✨</div>
-                  <div className="absolute bottom-8 left-1/3 text-4xl animate-float-up-delayed-2 rotate-6">🏆</div>
-                  <div className="absolute bottom-6 right-1/3 text-5xl animate-float-up-delayed-3 -rotate-6">⭐</div>
-                  
-                  {/* Main Celebration Emoji */}
-                  <div className="text-7xl animate-bounce-in-slow relative z-10">
-                    🎉
-                  </div>
-                  
-                  {/* Profit Amount - Enhanced with larger, more visible display */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-24 animate-profit-pop-enhanced z-20">
-                    <div className="relative">
-                      {/* Glow effect */}
-                      <div className="absolute inset-0 bg-green-400 rounded-full blur-2xl opacity-60 animate-pulse"></div>
-                      {/* Main badge - larger and more prominent */}
-                      <div className="relative bg-gradient-to-r from-green-500 via-green-600 to-green-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
-                        <div className="flex items-center gap-4">
-                          <span className="text-5xl animate-spin-slow">💰</span>
-                          <span className="tracking-wide font-black">+${profitAmount.toLocaleString('en-US')}</span>
-                          <span className="text-3xl animate-bounce">🎊</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Confetti effect */}
-                  <div className="absolute top-0 left-1/2 w-2 h-2 bg-yellow-400 rounded-full animate-confetti-1"></div>
-                  <div className="absolute top-0 left-1/3 w-2 h-2 bg-green-400 rounded-full animate-confetti-2"></div>
-                  <div className="absolute top-0 right-1/3 w-2 h-2 bg-blue-400 rounded-full animate-confetti-3"></div>
-                  <div className="absolute top-0 right-1/4 w-2 h-2 bg-pink-400 rounded-full animate-confetti-4"></div>
-                </div>
-              )}
-              {animationState === 'loss' && (
-                <div 
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none" 
-                  style={{ 
-                    position: 'absolute', 
-                    top: 0, 
-                    left: 0, 
-                    right: 0, 
-                    bottom: 0, 
-                    overflow: 'visible',
-                    zIndex: 10000,
-                    pointerEvents: 'none',
-                    backgroundColor: 'rgba(255, 0, 0, 0.2)' // Temporary: red background to see if overlay renders
-                  }}
-                >
-                  {(() => {
-                    return null;
-                  })()}
-                  {/* Loss Emojis */}
-                  <div className="absolute top-8 left-1/4 text-4xl animate-float-down rotate-12">💔</div>
-                  <div className="absolute top-6 right-1/4 text-5xl animate-float-down-delayed -rotate-12">😢</div>
-                  <div className="absolute bottom-8 left-1/3 text-4xl animate-float-down-delayed-2 rotate-6">💸</div>
-                  <div className="absolute bottom-6 right-1/3 text-4xl animate-float-down-delayed-3 -rotate-6">📉</div>
-                  
-                  {/* Main Sad Emoji */}
-                  <div className="text-7xl animate-bounce-in-slow relative z-10">
-                    😔
-                  </div>
-                  
-                  {/* Loss Amount - Enhanced with larger, more visible display */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-24 animate-profit-pop-enhanced z-20">
-                    <div className="relative">
-                      {/* Glow effect */}
-                      <div className="absolute inset-0 bg-red-400 rounded-full blur-2xl opacity-60 animate-pulse"></div>
-                      {/* Main badge - larger and more prominent */}
-                      <div className="relative bg-gradient-to-r from-red-500 via-red-600 to-red-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
-                        <div className="flex items-center gap-4">
-                          <span className="text-5xl animate-shake">💸</span>
-                          <span className="tracking-wide font-black">-${profitAmount.toLocaleString('en-US')}</span>
-                          <span className="text-3xl">😢</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {/* Header with Name and Status */}
-              <div className="flex items-start justify-between mb-5">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold text-xl text-gray-900">{modelStat.modelName}</h3>
-                    {playerWithMostChips && player.id === playerWithMostChips.id && (
-                      <span className="text-lg">👑</span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  {isCurrentPlayer && gameState.phase !== 'finished' && isRunning && (
-                    <Badge className="bg-yellow-400 text-black animate-pulse text-xs font-semibold px-3 py-1 flex items-center gap-1.5 shadow-md">
-                      <span className="text-sm">🤔</span>
-                      <span>Thinking...</span>
-                    </Badge>
-                  )}
-                  {player.lastAction && !isCurrentPlayer && (
-                    <div className="text-3xl animate-bounce drop-shadow-lg">
-                      {getActionEmoji(player.lastAction)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Key Stats - Enhanced */}
-              <div className="grid grid-cols-2 gap-4 mb-5">
-                <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-3 border border-gray-200 shadow-sm">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Chips</div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    <AnimatedChips
-                      value={displayedChips.get(player.id) ?? player.chips}
-                      isAnimating={chipAnimations.get(player.id)?.isAnimating || false}
-                    />
-                  </div>
-                </div>
-                <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-3 border border-gray-200 shadow-sm">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bet</div>
-                  <div className="flex items-center gap-2">
-                    {player.currentBet > 0 ? (
-                      <>
-                        <span className="text-2xl">💰</span>
-                        <div className="text-xl font-bold text-gray-900">
-                          ${player.currentBet.toLocaleString('en-US')}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-lg font-medium text-gray-400 italic">
-                        $0
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Current Hand */}
-              {player.hand.length > 0 && (
-                <div className="mb-5">
-                  <div className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Hole Cards</div>
-                  <div className="flex gap-3 justify-center">
-                    {player.hand.map((card, cardIndex) => {
-                      const cardKey = `${card.rank}-${card.suit}-${player.id}`;
-                      const matchColor = cardMatchColors.get(cardKey);
-                      // Hide cards if player folded, show if all-in or at showdown or is current player
-                      const hasFolded = player.lastAction === 'fold';
-                      const shouldReveal = !hasFolded && (
-                        gameState.phase === 'showdown' || 
-                        player.isAllIn || 
-                        (isCurrentPlayer && gameState.phase !== 'finished')
-                      );
-                      return (
-                        <CardComponent
-                          key={cardIndex}
-                          card={card}
-                          isRevealed={shouldReveal}
-                          index={cardIndex}
-                          isDealing={isRunning}
-                          matchColor={matchColor}
-                        />
-                      );
-                    })}
-                  </div>
-                  
-                  {/* Hand Rank and Name with Color Matching */}
-                  {gameState.communityCards.length >= 3 && !(player.lastAction === 'fold') && (gameState.phase === 'showdown' || player.isAllIn || (isCurrentPlayer && gameState.phase !== 'finished')) && (
-                    (() => {
-                      const handInfo = getHandInfo(player.hand, gameState.communityCards);
-                      if (!handInfo) return null;
-                      
-                      // Get color based on hand rank, with matching for same ranks
-                      const colorClass = HAND_RANK_COLORS[handInfo.rank] || 'from-purple-500 to-purple-600';
-                      
-                      return (
-                        <div className="mt-4 flex items-center justify-center">
-                          <div className={cn(
-                            "bg-gradient-to-r text-white rounded-lg px-4 py-2 shadow-lg border-2",
-                            colorClass,
-                            hasHandMatch ? 'border-white ring-2 ring-white/50' : 'border-transparent'
-                          )}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg font-bold">#{handInfo.rank}</span>
-                              <span className="text-sm font-semibold">{handInfo.name}</span>
-                              {hasHandMatch && (
-                                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                                  {sameRankPlayers.length} tied
-                                </span>
+                  {/* Messenger Balloon - Inside Card */}
+                  {shouldShowMessenger && (
+                    <div className="mb-4">
+                      {playerRecentMessages.length > 0 ? (
+                        // Show player's own latest message
+                        <div
+                          className={cn(
+                            "relative bg-gradient-to-br from-white to-gray-50 border-2 border-gray-300 rounded-2xl shadow-lg p-3 text-xs w-full",
+                            latestMessage.emoji && "animate-pulse",
+                            "animate-fade-in"
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            {latestMessage.emoji && (
+                              <span className="text-lg flex-shrink-0">{latestMessage.emoji}</span>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              {latestMessage.strategy && (
+                                <div className="text-gray-900 font-semibold leading-relaxed text-xs">
+                                  {latestMessage.strategy}
+                                </div>
+                              )}
+                              {!latestMessage.strategy && latestMessage.reasoning && (
+                                <div className="text-gray-700 italic leading-relaxed text-xs">
+                                  "{latestMessage.reasoning}"
+                                </div>
+                              )}
+                              {!latestMessage.strategy && !latestMessage.reasoning && latestMessage.decision && (
+                                <div className="text-gray-900 font-bold text-xs">
+                                  {latestMessage.decision}
+                                </div>
                               )}
                             </div>
                           </div>
                         </div>
-                      );
-                    })()
+                      ) : otherPlayerMessages.length > 0 ? (
+                        // Show other player's message about this player
+                        <div
+                          className={cn(
+                            "relative bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-2xl shadow-md p-3 text-xs w-full",
+                            "animate-fade-in"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            {latestMessage.emoji && (
+                              <span className="text-base">{latestMessage.emoji}</span>
+                            )}
+                            <div className="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                              {latestMessage.modelName}
+                            </div>
+                          </div>
+                          <div className="text-gray-800 leading-relaxed font-medium text-xs">
+                            {latestMessage.strategy}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   )}
-                </div>
-              )}
 
-              {/* Current Status - Enhanced */}
-              <div className="space-y-2">
-                {player.isAllIn && (
-                  <div className="flex items-center justify-center">
-                    <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold px-4 py-1.5 shadow-lg animate-pulse">
-                      🔥 ALL-IN
-                    </Badge>
+                  {/* Win/Loss Animation Overlay */}
+                  {animationState === 'win' && (
+                    <div
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        overflow: 'visible',
+                        zIndex: 10000,
+                        pointerEvents: 'none',
+                        backgroundColor: 'rgba(0, 255, 0, 0.2)' // Temporary: green background to see if overlay renders
+                      }}
+                    >
+                      {(() => {
+                        return null;
+                      })()}
+                      {/* Celebration Emojis */}
+                      <div className="absolute top-8 left-1/4 text-5xl animate-float-up rotate-12">🎊</div>
+                      <div className="absolute top-6 right-1/4 text-4xl animate-float-up-delayed -rotate-12">✨</div>
+                      <div className="absolute bottom-8 left-1/3 text-4xl animate-float-up-delayed-2 rotate-6">🏆</div>
+                      <div className="absolute bottom-6 right-1/3 text-5xl animate-float-up-delayed-3 -rotate-6">⭐</div>
+
+                      {/* Main Celebration Emoji */}
+                      <div className="text-7xl animate-bounce-in-slow relative z-10">
+                        🎉
+                      </div>
+
+                      {/* Profit Amount - Enhanced with larger, more visible display */}
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-24 animate-profit-pop-enhanced z-20">
+                        <div className="relative">
+                          {/* Glow effect */}
+                          <div className="absolute inset-0 bg-green-400 rounded-full blur-2xl opacity-60 animate-pulse"></div>
+                          {/* Main badge - larger and more prominent */}
+                          <div className="relative bg-gradient-to-r from-green-500 via-green-600 to-green-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
+                            <div className="flex items-center gap-4">
+                              <span className="text-5xl animate-spin-slow">💰</span>
+                              <span className="tracking-wide font-black">+${profitAmount.toLocaleString('en-US')}</span>
+                              <span className="text-3xl animate-bounce">🎊</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Confetti effect */}
+                      <div className="absolute top-0 left-1/2 w-2 h-2 bg-yellow-400 rounded-full animate-confetti-1"></div>
+                      <div className="absolute top-0 left-1/3 w-2 h-2 bg-green-400 rounded-full animate-confetti-2"></div>
+                      <div className="absolute top-0 right-1/3 w-2 h-2 bg-blue-400 rounded-full animate-confetti-3"></div>
+                      <div className="absolute top-0 right-1/4 w-2 h-2 bg-pink-400 rounded-full animate-confetti-4"></div>
+                    </div>
+                  )}
+                  {animationState === 'loss' && (
+                    <div
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        overflow: 'visible',
+                        zIndex: 10000,
+                        pointerEvents: 'none',
+                        backgroundColor: 'rgba(255, 0, 0, 0.2)' // Temporary: red background to see if overlay renders
+                      }}
+                    >
+                      {(() => {
+                        return null;
+                      })()}
+                      {/* Loss Emojis */}
+                      <div className="absolute top-8 left-1/4 text-4xl animate-float-down rotate-12">💔</div>
+                      <div className="absolute top-6 right-1/4 text-5xl animate-float-down-delayed -rotate-12">😢</div>
+                      <div className="absolute bottom-8 left-1/3 text-4xl animate-float-down-delayed-2 rotate-6">💸</div>
+                      <div className="absolute bottom-6 right-1/3 text-4xl animate-float-down-delayed-3 -rotate-6">📉</div>
+
+                      {/* Main Sad Emoji */}
+                      <div className="text-7xl animate-bounce-in-slow relative z-10">
+                        😔
+                      </div>
+
+                      {/* Loss Amount - Enhanced with larger, more visible display */}
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-24 animate-profit-pop-enhanced z-20">
+                        <div className="relative">
+                          {/* Glow effect */}
+                          <div className="absolute inset-0 bg-red-400 rounded-full blur-2xl opacity-60 animate-pulse"></div>
+                          {/* Main badge - larger and more prominent */}
+                          <div className="relative bg-gradient-to-r from-red-500 via-red-600 to-red-500 text-white font-extrabold text-4xl px-10 py-6 rounded-full shadow-2xl border-4 border-white/90 backdrop-blur-sm animate-bounce">
+                            <div className="flex items-center gap-4">
+                              <span className="text-5xl animate-shake">💸</span>
+                              <span className="tracking-wide font-black">-${profitAmount.toLocaleString('en-US')}</span>
+                              <span className="text-3xl">😢</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Header with Name and Status */}
+                  <div className="flex items-start justify-between mb-5">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-xl text-gray-900">{modelStat.modelName}</h3>
+                        {playerWithMostChips && player.id === playerWithMostChips.id && (
+                          <span className="text-lg">👑</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {isCurrentPlayer && gameState.phase !== 'finished' && isRunning && (
+                        <Badge className="bg-yellow-400 text-black animate-pulse text-xs font-semibold px-3 py-1 flex items-center gap-1.5 shadow-md">
+                          <span className="text-sm">🤔</span>
+                          <span>Thinking...</span>
+                        </Badge>
+                      )}
+                      {player.lastAction && !isCurrentPlayer && (
+                        <div className="text-3xl animate-bounce drop-shadow-lg">
+                          {getActionEmoji(player.lastAction)}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
 
-              </Card>
-            </div>
-          );
-        })}
+                  {/* Key Stats - Enhanced */}
+                  <div className="grid grid-cols-2 gap-4 mb-5">
+                    <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-3 border border-gray-200 shadow-sm">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Chips</div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        <AnimatedChips
+                          value={displayedChips.get(player.id) ?? player.chips}
+                          isAnimating={chipAnimations.get(player.id)?.isAnimating || false}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg p-3 border border-gray-200 shadow-sm">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bet</div>
+                      <div className="flex items-center gap-2">
+                        {player.currentBet > 0 ? (
+                          <>
+                            <span className="text-2xl">💰</span>
+                            <div className="text-xl font-bold text-gray-900">
+                              ${player.currentBet.toLocaleString('en-US')}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-lg font-medium text-gray-400 italic">
+                            $0
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Current Hand */}
+                  {player.hand.length > 0 && (
+                    <div className="mb-5">
+                      <div className="text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">Hole Cards</div>
+                      <div className="flex gap-3 justify-center">
+                        {player.hand.map((card, cardIndex) => {
+                          const cardKey = `${card.rank}-${card.suit}-${player.id}`;
+                          const matchColor = cardMatchColors.get(cardKey);
+                          // Hide cards if player folded, show if all-in or at showdown or is current player
+                          const hasFolded = player.lastAction === 'fold';
+                          const shouldReveal = !hasFolded && (
+                            gameState.phase === 'showdown' ||
+                            player.isAllIn ||
+                            (isCurrentPlayer && gameState.phase !== 'finished')
+                          );
+                          return (
+                            <CardComponent
+                              key={cardIndex}
+                              card={card}
+                              isRevealed={shouldReveal}
+                              index={cardIndex}
+                              isDealing={isRunning}
+                              matchColor={matchColor}
+                            />
+                          );
+                        })}
+                      </div>
+
+                      {/* Hand Rank and Name with Color Matching */}
+                      {gameState.communityCards.length >= 3 && !(player.lastAction === 'fold') && (gameState.phase === 'showdown' || player.isAllIn || (isCurrentPlayer && gameState.phase !== 'finished')) && (
+                        (() => {
+                          const handInfo = getHandInfo(player.hand, gameState.communityCards);
+                          if (!handInfo) return null;
+
+                          // Get color based on hand rank, with matching for same ranks
+                          const colorClass = HAND_RANK_COLORS[handInfo.rank] || 'from-purple-500 to-purple-600';
+
+                          return (
+                            <div className="mt-4 flex items-center justify-center">
+                              <div className={cn(
+                                "bg-gradient-to-r text-white rounded-lg px-4 py-2 shadow-lg border-2",
+                                colorClass,
+                                hasHandMatch ? 'border-white ring-2 ring-white/50' : 'border-transparent'
+                              )}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg font-bold">#{handInfo.rank}</span>
+                                  <span className="text-sm font-semibold">{handInfo.name}</span>
+                                  {hasHandMatch && (
+                                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                                      {sameRankPlayers.length} tied
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      )}
+                    </div>
+                  )}
+
+                  {/* Current Status - Enhanced */}
+                  <div className="space-y-2">
+                    {player.isAllIn && (
+                      <div className="flex items-center justify-center">
+                        <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold px-4 py-1.5 shadow-lg animate-pulse">
+                          🔥 ALL-IN
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+
+                </Card>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Summary Modal - Show when game finishes */}
@@ -1363,11 +1347,11 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 // Find the player with the most chips
                 const playersWithChips = gameState.players.filter(p => p.chips > 0);
                 if (playersWithChips.length === 0) return null;
-                
+
                 const sortedByChips = [...gameState.players].sort((a, b) => b.chips - a.chips);
                 const winnerPlayer = sortedByChips[0];
                 const winnerStats = rankings.find(r => r.modelName === winnerPlayer.name);
-                
+
                 return (
                   <>
                     <div className="text-center mb-8">
@@ -1415,10 +1399,10 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 const sortedByChips = [...gameState.players].sort((a, b) => b.chips - a.chips);
                 const winnerPlayer = sortedByChips[0];
                 const otherPlayers = gameState.players.filter(p => p.id !== winnerPlayer.id);
-                
+
                 // Sort other players by chips (descending)
                 const sortedOtherPlayers = otherPlayers.sort((a, b) => b.chips - a.chips);
-                
+
                 return (
                   <div className="mb-6">
                     <div className="text-lg font-bold text-gray-900 mb-4">Other Players</div>
@@ -1427,7 +1411,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                         const playerStats = rankings.find(r => r.modelName === player.name);
                         const playerChips = player.chips;
                         const isKnockedOut = playerChips <= 0;
-                        
+
                         return (
                           <div key={index} className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -1460,17 +1444,17 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                 <Button
                   onClick={() => {
                     if (!gameState) return;
-                    
+
                     // Find the winner (player with most chips)
                     const sortedByChips = [...gameState.players].sort((a, b) => b.chips - a.chips);
                     const winnerPlayer = sortedByChips[0];
                     const winnerStats = rankings.find(r => r.modelName === winnerPlayer.name);
-                    
+
                     // Get other players
                     const otherPlayers = gameState.players
                       .filter(p => p.id !== winnerPlayer.id)
                       .sort((a, b) => b.chips - a.chips);
-                    
+
                     // Share result functionality
                     const resultText = `🏆 ${winnerPlayer.name} won the poker game!\n\n` +
                       `Total Chips: $${winnerPlayer.chips.toLocaleString('en-US')}\n` +
@@ -1479,7 +1463,7 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
                         const pStats = rankings.find(r => r.modelName === p.name);
                         return `${p.name}: $${p.chips.toLocaleString('en-US')} (${pStats?.handsWon || 0} wins)`;
                       }).join('\n');
-                    
+
                     if (navigator.share) {
                       navigator.share({
                         title: 'Poker Game Results',
@@ -1511,16 +1495,16 @@ export default function GameBoard({ gameState, stats, rankings, isRunning, chatM
   );
 }
 
-function CardComponent({ 
-  card, 
-  isRevealed = true, 
+function CardComponent({
+  card,
+  isRevealed = true,
   size = 'normal',
   index = 0,
   isDealing = false,
   matchColor
-}: { 
-  card: any | null; 
-  isRevealed?: boolean; 
+}: {
+  card: any | null;
+  isRevealed?: boolean;
   size?: 'normal' | 'large';
   index?: number;
   isDealing?: boolean;
@@ -1530,9 +1514,9 @@ function CardComponent({
   if (!card) {
     isRevealed = false;
   }
-  
-  const cardSize = size === 'large' 
-    ? 'w-20 h-28' 
+
+  const cardSize = size === 'large'
+    ? 'w-20 h-28'
     : 'w-14 h-20';
   const textSize = size === 'large'
     ? { rank: 'text-xl', suit: 'text-4xl' }
@@ -1541,7 +1525,7 @@ function CardComponent({
 
   if (!isRevealed) {
     return (
-      <div 
+      <div
         className={cn(
           cardSize,
           borderRadius,
